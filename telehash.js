@@ -29,19 +29,27 @@ var self;
 var listeners = [];
 var connectors = {};
 
+/*
+   STATE.offline: initial state
+   STATE.seeding: only handle packets from seeds to determine our ip:port and NAT type
+   STATE.online: full packet processing
+   TODO:add callbacks to inform user of the module when switching between states..
+*/
+var STATE = {offline:0, seeding:1, online:2};
+
+
 // init self, use this whenever it may not be init'd yet to be safe
 function getSelf(arg)
 {
     if(self) return self;
     self = arg || {};
 
-    if(!self.seeds) self.seeds = ['164.40.143.34:42424','208.68.163.247:42424'];  
+    self.state = STATE.offline;	//start in offline state
 
-    //determine our local interface ip (ignoring 127.0.0.1) to help determine if we are behind NAT later
-    self.localip = util.getLocalIP();
+    if(!self.seeds) self.seeds = ['164.40.143.34:42424','208.68.163.247:42424']; 
 
     // udp socket
-    self.server = dgram.createSocket("udp4", incoming);
+    self.server = dgram.createSocket("udp4", incomingDgram);
 
     // If bind port is not specified, pick a random open port.
     self.server.bind(self.port ? parseInt(self.port) : 0, self.ip || '0.0.0.0');    
@@ -62,72 +70,175 @@ function behindSNAT(){
 	return (self.snat == true);
 }
 
-// process incoming datagram
-function incoming(msg, rinfo)
+
+function resetIdentity(){
+    if( self.me ) {
+	self.me.purge();
+    }
+    delete self.me;
+    listeners = [];
+    connectors= {};
+    delete self.nat;
+    delete self.snat;
+}
+
+function doSeed(callback)
 {
-    //TODO during seeding only accept packets from seeds...
+    //we can only seed into DHT when we are offline.
+    if(self.state != STATE.offline){
+	return;
+    }
+    //reset our identity
+    resetIdentity();
 
-    var from = rinfo.address + ":" + rinfo.port;
-    try {
+    console.log("Seeding..");
+    self.state = STATE.seeding;
 
-        var telex = JSON.parse(msg.toString());
+    if( callback ) getSelf().onSeeded = callback;
 
-    } catch(E) {
+    // in 10 seconds, error out if nothing yet!
+    self.seedTimeout = setTimeout(function(){
+	self.state = STATE.offline;//go back into offline state
+        if(self.onSeeded) self.onSeeded("timeout");
+        delete self.seedTimeout;
+	purgeSeeds();
+        //try again...
+	doSeed( callback );
+    }, 10000);
+    
+    pingSeeds();
+}
+function purgeSeeds(){
+    self.seeds.forEach(function(ipp){
+      	slib.getSwitch(ipp).purge();	
+    });
+}
+function pingSeeds(){
+    // loop all seeds, asking for furthest end from them to get the most diverse responses!
+    self.seeds.forEach(function(ipp){
+	var hash = new hlib.Hash(ipp);
+	var s = slib.getSwitch(ipp);
+	s.seed = true;	//mark it as a seed - (during scan check if we have lines open to any initial seeds)
+	s.popped = true;
+	s.send( {'+end':hash.far()} );
+    });
+}
+
+//filter incoming packets based on STATE
+function incomingDgram(msg,rinfo){
+
+	if( self.state == STATE.offline ) {
+		//drop all packets
+		return;
+	}
+	//who is it from?
+    	var from = rinfo.address + ":" + rinfo.port;
+	
+	//parse the packet..and handle out-of-band packets..
+	try {
+	        var telex = JSON.parse(msg.toString());
+
+	} catch(E) {
 		//out of band data non JSON.
 		if(self.handleOOB) self.handleOOB(msg,rinfo);
 		return;
-    }
-
-    console.error("<--\t"+from+"\t"+msg.toString());
-
-    //ignore .pop packets
-    if( telex['.pop'] ) return;
-
-    if( telex['_OOB'] ) {
+	}
+	if(telex['_OOB']){
 		//JSON formatted out of band data:
 		if(self.handleOOB) self.handleOOB(msg,rinfo);
 		return;	
-    }
-    //TODO set time limit of 5s for NAT detection from start of seeding..
-    //TODO only accept NAT detection from initial seeds...
+	}
+
+	//at this point we should have a telex
+	console.error("<--\t"+from+"\t"+msg.toString());
+
+	if( self.state == STATE.seeding ){
+		//only accept packets from seeds - note: we need at least 2 live seeds for SNAT detection
+		for(var i in self.seeds){
+			if(from==self.seeds[i]){
+				 handleSeedTelex(telex,from); break;
+			}
+		}
+		return;
+	}
+	if( self.state == STATE.online ){	
+		//process all packets
+		handleTelex(telex,from,msg.length);
+	}
+}
+function handleSeedTelex(telex,from){
+
+    //do NAT detection once
     if(!self.me && telex._to && !util.isLocalIP(telex._to) ) {
 	//we are behind NAT
 	self.nat = true;
 	console.log("NAT Detected!");
     }
 
-    // if we're seeded and don't know our identity yet, save it!
-    if(self.seeding && !self.me && telex._to) {
+    //first telex from seed will establish our identity
+    if(!self.me && telex._to) {
         self.me = slib.getSwitch(telex._to);
         self.me.self = true; // flag switch to not send to itself
 	clearTimeout(self.seedTimeout);
         delete self.seedTimeout;
 	doPopTap();//only needed if we are behind NAT
-	//delay...to allow time  for SNAT detection
+	//delay...to allow time for SNAT detection (we need a response from another seed)
 	setTimeout( function(){
-	        self.seeding();
-	        self.connect_listen_Interval = setInterval(connect_listen,5000);
+		self.state = STATE.online;
+		console.log("GOING ONLINE");
+	        if(self.onSeeded) self.onSeeded();
+	        self.connect_listen_Interval = setInterval(connect_listen,10000);
+
 	},2000);
     }
 	
     if( self.me && from == self.me.ipp ){
 	console.log("Self Seeding...");
 	self.seed = true;
-	return; //no need to respond to ourselves
     }
 
+    if(telex._to && self.me && !self.snat && (util.IP(telex._to) == self.me.ip) && (self.me.ipp !== telex._to) ) {
+	//we are behind symmetric NAT
+	console.log("Symmetric NAT detected!", JSON.stringify(telex),"from:",from );
+	self.snat=true;
+	self.nat=true;
+   }
 
-    if( !self.seed ){ //a seed should not be behind an SNAT
-    	if(telex._to && self.me && !self.snat && (util.IP(telex._to) == self.me.ip) && (self.me.ipp !== telex._to) ) {
-		//we are behind symmetric NAT
-		console.log("Symmetric NAT detected!", JSON.stringify(telex),"from:",from );
-		//TODO remove +pop .tap listener if exists..
-		self.snat=true;
-		self.nat=true;
+}
+
+function handleTelex(telex, from, len)
+{
+    if( self.me && from == self.me.ipp ) return;//dont process packets that claim to be from us!
+
+    if( telex['.pop'] ) {
+	//TODO:someone just popped their firewall.. if we tried to contact them we might have to _ring them again
+	return;
+    }
+
+    //must have a _to header in telex
+    if( telex._to ){
+	if( self.snat ){
+		//_to will not match self.me.ipp because we are behind SNAT but at least ip should match
+		if( self.me.ip != utils.IP(telex._to)) return;
+	}else{
+		//_to must equal our ipp
+		if( self.me.ipp != telex._to ) return;
 	}
+
+    }else {
+	//bad telex!
+	return;
     }
 
-    slib.getSwitch(from).process(telex, msg.length);
+    //incoming telexes should have a _line or _ring header
+    //if a line exists we should already know them..
+    if( telex._line ) {    
+	if(!slib.knownSwitch(from)) return;
+    }else{
+	if(!telex._ring) return; //not even a ring.. bad telex
+    }
+
+    slib.getSwitch(from).process(telex, len);
 }
 
 // process a validated telex that has data, commands, etc to be handled
@@ -200,48 +311,13 @@ function doNews(s)
    // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
 
-function doSeed(callback)
-{
-    if(!callback) callback = function(){};
-    if(self && self.seeding && self.me) return callback(); // already seeded
-    console.log("Seeding..");
-    getSelf().seeding = callback;
-
-    // in 10 seconds, error out if nothing yet!
-    self.seedTimeout = setTimeout(function(){
-        self.seeding("timeout");
-        delete self.seeding;
-        delete self.seedTimeout;
-	purgeSeeds();
-        //try again...
-	doSeed( callback );
-    }, 10000);
-    
-    pingSeeds();
-}
-function purgeSeeds(){
-    self.seeds.forEach(function(ipp){
-      	slib.getSwitch(ipp).purge();	
-    });
-}
-function pingSeeds(){
-    // loop all seeds, asking for furthest end from them to get the most diverse responses!
-    self.seeds.forEach(function(ipp){
-      var hash = new hlib.Hash(ipp);
-	  var s = slib.getSwitch(ipp);
-	  s.seed = true;	//mark it as a seed - (during scan check if we have lines open to any initial seeds)
-	  s.popped = true;
-	  s.send( {'+end':hash.far()} );
-    });
-}
-
 function doPopTap(){
     if( !self.nat ) return;
 
     console.error("Tapping +POPs...");
     listeners.push( {hash:self.me.hash, end:self.me.end, rule:{'is':{'+end':self.me.end}, 'has':['+pop']}} );
-    setTimeout( sendTapRequests, 2000);
-
+    //setTimeout( sendTapRequests, 2000);
+    sendTapRequests();
     //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
     //allow at least initial telexes from seeds to be processed before sending out taps
 }
@@ -386,18 +462,24 @@ function doShutdown()
 }
 
 function connect_listen(){
+
+   if( self.state != STATE.online) return;
+
    console.log("Connect/Listen Loop");
    listenLoop();
    connectLoop();
+
 }
 
 // scan all known switches regularly to keep a good network map alive and trim the rest
 function scan()
 {
+    if( self.state != STATE.online ) return;
+
     if (!this.count) this.count=1;
 
     var all = slib.getSwitches();
-    console.log("------- scan loop: " + this.count++);
+    console.log("--scan loop: " + this.count++);
 
     // first just cull any not healthy, easy enough
     all.forEach(function(s){
@@ -413,6 +495,7 @@ function scan()
      
     // if only us or nobody around, and we were seeded at one point, try again!
     // unless we are the seed..
+/*
     if(all.length <= 1 && self.seeding && !self.seedTimeout && !self.seed )
     {	
         //delete self.seeding;
@@ -423,13 +506,10 @@ function scan()
 	clearInterval(self.connect_listen_Interval);	
         return doSeed(self.seeding);
     }
-
-    // not seeding
-    if(!self.seeding || !self.me) return;
-
+*/
     //ping all...
     all.forEach( function(s){
-	if(s.popped || self.snat ) s.send({"+end":self.me.end}); 
+	if(s.popped || self.snat ) s.send({"+end":self.me.end});
     });
 
     //if we lost connection to all initial seeds.. ping them all again?

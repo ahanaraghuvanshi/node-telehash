@@ -33,6 +33,11 @@ function getSwitch(ipp)
 }
 exports.getSwitch = getSwitch;
 
+function knownSwitch(ipp){
+	return (ipp in network);
+}
+exports.knownSwitch=knownSwitch;
+
 function getSelf()
 {   
     var me = undefined; 
