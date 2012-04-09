@@ -60,6 +60,8 @@ function getSelf(arg)
     // start timer to monitor all switches and drop any over thresholds and not in buckets
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
 
+    self.connect_listen_Interval = setInterval(connect_listen,10000);
+
     return self;
 }
 
@@ -84,6 +86,11 @@ function resetIdentity(){
 
 function doSeed(callback)
 {
+
+    if(!self) {
+	getSelf();
+    }
+
     //we can only seed into DHT when we are offline.
     if(self.state != STATE.offline){
 	return;
@@ -94,7 +101,7 @@ function doSeed(callback)
     console.log("Seeding..");
     self.state = STATE.seeding;
 
-    if( callback ) getSelf().onSeeded = callback;
+    if( callback ) self.onSeeded = callback;
 
     // in 10 seconds, error out if nothing yet!
     self.seedTimeout = setTimeout(function(){
@@ -156,7 +163,7 @@ function incomingDgram(msg,rinfo){
 		//only accept packets from seeds - note: we need at least 2 live seeds for SNAT detection
 		for(var i in self.seeds){
 			if(from==self.seeds[i]){
-				 handleSeedTelex(telex,from); break;
+				 handleSeedTelex(telex,from,msg.length); break;
 			}
 		}
 		return;
@@ -166,7 +173,7 @@ function incomingDgram(msg,rinfo){
 		handleTelex(telex,from,msg.length);
 	}
 }
-function handleSeedTelex(telex,from){
+function handleSeedTelex(telex,from,len){
 
     //do NAT detection once
     if(!self.me && telex._to && !util.isLocalIP(telex._to) ) {
@@ -185,10 +192,9 @@ function handleSeedTelex(telex,from){
 	//delay...to allow time for SNAT detection (we need a response from another seed)
 	setTimeout( function(){
 		self.state = STATE.online;
+		pingSeeds();	
 		console.log("GOING ONLINE");
-	        if(self.onSeeded) self.onSeeded();
-	        self.connect_listen_Interval = setInterval(connect_listen,10000);
-
+	        if(self.onSeeded) self.onSeeded();	        
 	},2000);
     }
 	
@@ -203,7 +209,8 @@ function handleSeedTelex(telex,from){
 	self.snat=true;
 	self.nat=true;
    }
-
+   
+   delete slib.getSwitch(from).misses;//since we are not processing the telex fully dont count misses
 }
 
 function handleTelex(telex, from, len)
@@ -312,14 +319,14 @@ function doNews(s)
 }
 
 function doPopTap(){
-    if( !self.nat ) return;
-
-    console.error("Tapping +POPs...");
-    listeners.push( {hash:self.me.hash, end:self.me.end, rule:{'is':{'+end':self.me.end}, 'has':['+pop']}} );
-    //setTimeout( sendTapRequests, 2000);
-    sendTapRequests();
-    //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
-    //allow at least initial telexes from seeds to be processed before sending out taps
+    if( self.nat ) {
+      console.error("Tapping +POPs...");
+      listeners.push( {hash:self.me.hash, end:self.me.end, rule:{'is':{'+end':self.me.end}, 'has':['+pop']}} );
+      //setTimeout( sendTapRequests, 2000);
+      //sendTapRequests();
+      //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
+      //allow at least initial telexes from seeds to be processed before sending out taps
+    }
 }
 
 function doFarListen(arg, callback)
@@ -375,7 +382,7 @@ function sendTapRequests(){
 	
    });
    Object.keys(tapRequests).forEach(function(ipp){
-	if( !slib.getSwitch(ipp).line) return;	
+	if( !slib.getSwitch(ipp).line) return;
 	doSend(ipp, {'.tap':tapRequests[ipp]});
    });
 }
@@ -462,13 +469,12 @@ function doShutdown()
 }
 
 function connect_listen(){
-
-   if( self.state != STATE.online) return;
-
-   console.log("Connect/Listen Loop");
-   listenLoop();
-   connectLoop();
-
+   if( self.state ) {
+	   if( self.state != STATE.online) return;
+	   console.log("Connect/Listen Loop");
+	   listenLoop();
+	   connectLoop();
+   }
 }
 
 // scan all known switches regularly to keep a good network map alive and trim the rest
