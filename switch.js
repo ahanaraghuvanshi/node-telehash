@@ -231,7 +231,6 @@ function telexMatchesRule(telex,rule) {
 //relay an incoming telex, strip out headers keeping signals and raw data
 Switch.prototype.relay = function(telex, arg){
    var newTelex = {};
-   if( !telex['_hop'] ) newTelex['_hop']=0;
 
    Object.keys(telex).forEach(function(key){
 		//stip off headers
@@ -247,7 +246,7 @@ Switch.prototype.relay = function(telex, arg){
 		}
 		newTelex[key] = telex[key];
     });
-
+    if( !telex['_hop'] ) newTelex['_hop']=1;
     console.error("Relaying:"+JSON.stringify(newTelex)+" TO:"+this.ipp);
     this.send(newTelex);
 }
