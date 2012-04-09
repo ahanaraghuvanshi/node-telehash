@@ -46,7 +46,7 @@ function getSelf(arg)
 
     self.state = STATE.offline;	//start in offline state
 
-    if(!self.seeds) self.seeds = ['164.40.143.34:42424','208.68.163.247:42424']; 
+    if(!self.seeds) self.seeds = ['208.68.164.253:42424','208.68.163.247:42424']; 
 
     // udp socket
     self.server = dgram.createSocket("udp4", incomingDgram);
