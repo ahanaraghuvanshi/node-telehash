@@ -246,7 +246,7 @@ Switch.prototype.relay = function(telex, arg){
 		}
 		newTelex[key] = telex[key];
     });
-    if( !telex['_hop'] ) newTelex['_hop']=1;
+    if( !newTelex['_hop'] ) newTelex['_hop']=1;
     console.error("Relaying:"+JSON.stringify(newTelex)+" TO:"+this.ipp);
     this.send(newTelex);
 }
