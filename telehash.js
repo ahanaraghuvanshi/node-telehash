@@ -211,6 +211,7 @@ function handleSeedTelex(telex,from,len){
    }
    
    delete slib.getSwitch(from).misses;//since we are not processing the telex fully dont count misses
+   delete slib.getSwitch(from).ATexpected;
 }
 
 function handleTelex(telex, from, len)
@@ -413,8 +414,8 @@ function connectLoop()
 	switches.forEach( function(s){	
 		doSend(s,{'+end':connectors[id].end.toString(),
 			  '+connect':connectors[id].id,
-			  'from':self.me.ipp,
-			  'message':connectors[id].arg.message});
+			  '+from':self.me.ipp,
+			  '+message':connectors[id].arg.message});
 	});
    }
 }

@@ -120,56 +120,58 @@ function PORT(ipp){
 	return parseInt(ipp.substr(ipp.indexOf(':')+1));
 }
 function handleConnect(s, telex, callback){
-	console.log("Got A +CONNECT request from: " + telex['from']+"+connect="+telex['+connect']+" via:"+s.ipp);
-	var from = telex['from'];
+	console.log("Got A +CONNECT request from: " + telex['+from']+"+connect="+telex['+connect']+" via:"+s.ipp);
+	if( !telex['+from'] ) { console.log("data not relayed in telex. can't handle this connection request"); return;}	
+
+	var from = telex['+from'];
 	var id = telex['+connect'];
 	var reply = {};
 	reply['+connect'] = id; //match the connection IDs
-	reply['from'] = self.me.ipp;
+	reply['+from'] = self.me.ipp;
 	
 	if(!peers[from]) {
 		console.log("creating new channel");
 		peers[from]={id:id, ipp:from, channel:Math.floor((Math.random() * 65535) + 1), callback:callback};//setup a new channel#
 	}
 
-	reply['channel']=peers[from].channel;
+	reply['+channel']=peers[from].channel;
 
-	if( s.ipp == telex['from'] ){
+	if( s.ipp == telex['+from'] ){
 		//this is a direct message from switch originating the +connect
 		//send reply telex without +end
 		//this is quite rare and might only happen if there are very few switches in the DHT
 		s.send(reply);
 
 	}else{
+		telehash.send(from, reply);
 		//this was a relayed telex				
-		if( telex._snat) {
+		//if( telex._snat) { //the _snat header will not survive a relay..only signals are relayed by official switch implementation
 			//send telex with +end = hash(from.ipp)		
-			//this method to contact the switch behin symmetric NAT via relay. it should have done a farListen
+			//this method to contact the switch behin symmetric NAT via relay. it should have done a farListen()
 			//to receive this response.
 			reply['+end'] = new hlib.Hash(from).toString();
 			s.send(reply);	
-		}else{
-			//normal sending to the switch
-			telehash.send(from, reply);
-		}
+		//}
 	}
 
 	setTimeout(function(){
 		//this will send an out of band 'channel open' message
 		OOBSend( from, {id:id,channel:peers[from].channel,ipp:self.me.ipp});
-	},500);//allow time for other end to get the telex with the new channel#
+	},1000);//allow time for other end to get the telex with the new channel#
 }
 
 function handleResponse(s, telex, callback){
-	console.log("GOT RESPONSE from: "+telex['from']+"+connect="+telex['+connect']+" channel="+telex['channel']+" via:"+s.ipp);
-    if( telex.channel ){  
-    var from = telex['from'];
+	console.log("GOT RESPONSE from: "+telex['+from']+"+connect="+telex['+connect']+" channel="+telex['+channel']+" via:"+s.ipp);
+    if( telex.channel && telex.from ){  
+    var from = telex['+from'];
 	var id = telex['+connect'];
         if(!peers[from]){		
-		peers[from] = {id:id, channel:telex['channel'], ipp:from, callback:callback};
+		peers[from] = {id:id, channel:telex['+channel'], ipp:from, callback:callback};
 	}
 	//send out an out of band 'channel open' message.
 	OOBSend( from, {id:id,channel:peers[from].channel,ipp:self.me.ipp});
-	}
+   }else{
+	console.log("data not relayed in telex. can't handle this connection response.");
+   }
 }
 

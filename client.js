@@ -12,7 +12,7 @@ telehash.seed( function(err){
 function connect(name){
 	telehash.connect({id:name, message:'telehash rocks!'}, function(s,telex){			
 			
-		console.log("Reply MESSAGE: ", telex.message );
+		console.log("Reply MESSAGE: ", telex['+message'] );
 
 	});
 }
