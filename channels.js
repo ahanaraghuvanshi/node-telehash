@@ -120,8 +120,7 @@ function PORT(ipp){
 	return parseInt(ipp.substr(ipp.indexOf(':')+1));
 }
 function handleConnect(s, telex, callback){
-	console.log("Got A +CONNECT request from: " + telex['+from']+"+connect="+telex['+connect']+" via:"+s.ipp);
-	if( !telex['+from'] ) { console.log("data not relayed in telex. can't handle this connection request"); return;}	
+	console.log("Got A +CONNECT request from: " + telex['+from']+"+connect="+telex['+connect']+" via:"+s.ipp);	
 
 	var from = telex['+from'];
 	var id = telex['+connect'];
@@ -162,7 +161,7 @@ function handleConnect(s, telex, callback){
 
 function handleResponse(s, telex, callback){
 	console.log("GOT RESPONSE from: "+telex['+from']+"+connect="+telex['+connect']+" channel="+telex['+channel']+" via:"+s.ipp);
-    if( telex.channel && telex.from ){  
+ 
     var from = telex['+from'];
 	var id = telex['+connect'];
         if(!peers[from]){		
@@ -170,8 +169,6 @@ function handleResponse(s, telex, callback){
 	}
 	//send out an out of band 'channel open' message.
 	OOBSend( from, {id:id,channel:peers[from].channel,ipp:self.me.ipp});
-   }else{
-	console.log("data not relayed in telex. can't handle this connection response.");
-   }
+
 }
 
