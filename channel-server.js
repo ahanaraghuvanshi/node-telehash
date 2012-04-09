@@ -1,6 +1,7 @@
 var channels = require('./channels');
 
 channels.init({
+	seeds:['172.16.200.253:42424'],
 	ready:function(){
 		server();		
 	}		
