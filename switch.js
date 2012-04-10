@@ -139,9 +139,8 @@ function doEnd(s, end)
     var near = getNear(end);
     var healthyNear = [];
     near.forEach(function(ipp){
-	  var s = getSwitch(ipp);
-	  if(s.self) return healthyNear.push(ipp);
-	  if(s.healthy() && s.line ) healthyNear.push(ipp);
+	  var ss = getSwitch(ipp);
+	  if(ss.healthy() && ss.visible ) healthyNear.push(ipp);
     });
     s.send({'.see':healthyNear});
 }

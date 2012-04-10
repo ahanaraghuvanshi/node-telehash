@@ -48,11 +48,12 @@ function getSelf(arg)
 
     if(!self.seeds) self.seeds = ['208.68.164.253:42424','208.68.163.247:42424']; 
 
+    util.getLocalIP();
     // udp socket
     self.server = dgram.createSocket("udp4", incomingDgram);
 
     // If bind port is not specified, pick a random open port.
-    self.server.bind(self.port ? parseInt(self.port) : 0, self.ip || '0.0.0.0');    
+    self.server.bind(self.port ? parseInt(self.port) : 0, self.ip || '0.0.0.0');   
 
     // set up switch master callbacks
     slib.setCallbacks({data:doData, sock:self.server, news:doNews, behindNAT:behindNAT, behindSNAT:behindSNAT});
@@ -75,7 +76,7 @@ function behindSNAT(){
 
 function resetIdentity(){
     if( self.me ) {
-	self.me.purge();
+        self.me.purge();
     }
     delete self.me;
     listeners = [];
@@ -88,7 +89,7 @@ function doSeed(callback)
 {
 
     if(!self) {
-	getSelf();
+        getSelf();
     }
 
     //we can only seed into DHT when we are offline.
@@ -106,28 +107,28 @@ function doSeed(callback)
     // in 10 seconds, error out if nothing yet!
     self.seedTimeout = setTimeout(function(){
 	self.state = STATE.offline;//go back into offline state
-        if(self.onSeeded) self.onSeeded("timeout");
-        delete self.seedTimeout;
-	purgeSeeds();
-        //try again...
-	doSeed( callback );
+    if(self.onSeeded) self.onSeeded("timeout");
+    delete self.seedTimeout;
+    purgeSeeds();
+    //try again...
+    doSeed( callback );
     }, 10000);
     
     pingSeeds();
 }
 function purgeSeeds(){
     self.seeds.forEach(function(ipp){
-      	slib.getSwitch(ipp).purge();	
+      	slib.getSwitch(ipp).purge();
     });
 }
 function pingSeeds(){
     // loop all seeds, asking for furthest end from them to get the most diverse responses!
     self.seeds.forEach(function(ipp){
-	var hash = new hlib.Hash(ipp);
-	var s = slib.getSwitch(ipp);
-	s.seed = true;	//mark it as a seed - (during scan check if we have lines open to any initial seeds)
-	s.popped = true;
-	s.send( {'+end':hash.far()} );
+        var hash = new hlib.Hash(ipp);
+        var s = slib.getSwitch(ipp);
+        s.seed = true;	//mark it as a seed - (during scan check if we have lines open to any initial seeds)
+        s.popped = true;
+        s.send( {'+end':hash.far()} );
     });
 }
 
@@ -186,37 +187,43 @@ function handleSeedTelex(telex,from,len){
     if(!self.me && telex._to) {
         self.me = slib.getSwitch(telex._to);
         self.me.self = true; // flag switch to not send to itself
-	clearTimeout(self.seedTimeout);
+        clearTimeout(self.seedTimeout);
         delete self.seedTimeout;
-	doPopTap();//only needed if we are behind NAT
-	//delay...to allow time for SNAT detection (we need a response from another seed)
-	setTimeout( function(){
-		self.state = STATE.online;
-		pingSeeds();	
-		console.log("GOING ONLINE");
-	        if(self.onSeeded) self.onSeeded();	        
-	},2000);
+        
+	    //delay...to allow time for SNAT detection (we need a response from another seed)
+        setTimeout( function(){
+            console.log("GOING ONLINE");            
+            self.me.visible = true;//become visible (announce our-selves in .see commands)
+	        self.state = STATE.online;
+            doPopTap();//only needed if we are behind NAT
+	        //pingSeeds();    	    
+	        if(self.onSeeded) self.onSeeded();       
+        },2000);
     }
 	
     if( self.me && from == self.me.ipp ){
-	console.log("Self Seeding...");
-	self.seed = true;
+        console.log("Self Seeding...");
+        self.seed = true;
     }
 
     if(telex._to && self.me && !self.snat && (util.IP(telex._to) == self.me.ip) && (self.me.ipp !== telex._to) ) {
-	//we are behind symmetric NAT
-	console.log("Symmetric NAT detected!", JSON.stringify(telex),"from:",from );
-	self.snat=true;
-	self.nat=true;
+	    //we are behind symmetric NAT
+	    console.log("Symmetric NAT detected!", JSON.stringify(telex),"from:",from );
+        self.snat=true;
+        self.nat=true;
+        self.me.visible = false;//hard to be seen behind an SNAT :(
    }
    
-   delete slib.getSwitch(from).misses;//since we are not processing the telex fully dont count misses
-   delete slib.getSwitch(from).ATexpected;
+    //mark seed as visible
+    slib.getSwitch(from).visible = true;
+    handleTelex(telex,from,len);//handle the .see from the seed - establish line
+   //delete slib.getSwitch(from).misses;//since we are not processing the telex fully dont count misses
+   //delete slib.getSwitch(from).ATexpected;
 }
 
 function handleTelex(telex, from, len)
 {
-    if( self.me && from == self.me.ipp ) return;//dont process packets that claim to be from us!
+    if( self.me && from == self.me.ipp ) return;//dont process packets that claim to be from us! (we could be our own seed)
 
     if( telex['.pop'] ) {
 	//TODO:someone just popped their firewall.. if we tried to contact them we might have to _ring them again
@@ -241,9 +248,9 @@ function handleTelex(telex, from, len)
     //incoming telexes should have a _line or _ring header
     //if a line exists we should already know them..
     if( telex._line ) {    
-	if(!slib.knownSwitch(from)) return;
+        if(!slib.knownSwitch(from)) return;
     }else{
-	if(!telex._ring) return; //not even a ring.. bad telex
+        if(!telex._ring) return; //not even a ring.. bad telex
     }
 
     slib.getSwitch(from).process(telex, len);
@@ -292,7 +299,8 @@ function sendPOPRequest(ipp){
 
 function doNews(s)
 {
-   //new .seen switch	
+   //new .seen switch
+    s.visible = true;
 
    if(self.snat){
 	s.send({'+end':self.me.end}); //ping the new switch
@@ -306,15 +314,12 @@ function doNews(s)
    sendPOPRequest(s.ipp);
    s.popped = true;
 
-/*
-   //allow about 2s for new switch to pop its firewall before we ping it.
-   setTimeout(function(){
-	   if(self.me) {
-		s.send({'+end':self.me.end});
-		
-	   }
-   },2000);
-*/
+    //allow about 2s for new switch to pop its firewall before we ping it.
+    setTimeout(function(){
+        if(self.me){
+            s.send({'+end':self.me.end});
+        }
+    },2000);
 
    // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
@@ -324,7 +329,7 @@ function doPopTap(){
       console.error("Tapping +POPs...");
       listeners.push( {hash:self.me.hash, end:self.me.end, rule:{'is':{'+end':self.me.end}, 'has':['+pop']}} );
       //setTimeout( sendTapRequests, 2000);
-      //sendTapRequests();
+      sendTapRequests();
       //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
       //allow at least initial telexes from seeds to be processed before sending out taps
     }
@@ -346,6 +351,8 @@ function doFarListen(arg, callback)
 
 function doListen(arg, callback)
 {
+    if( !self.me ) return;
+
     //add a listener for arg.id 
     var hash = new hlib.Hash(arg.id);
     var rule = {'is':{'+end':hash.toString()}, 'has':['+connect']};	
@@ -383,14 +390,21 @@ function sendTapRequests(){
 	
    });
    Object.keys(tapRequests).forEach(function(ipp){
-	if( !slib.getSwitch(ipp).line) return;
-	doSend(ipp, {'.tap':tapRequests[ipp]});
+    var s = slib.getSwitch(ipp);
+	if( !s.line) return;
+    //dont send .tap too often.. need to allow time to get closer to the end we are interested in
+    if(!s.lastTapRequest || (s.lastTapRequest && (Date.now() > (s.lastTapRequest +40000)))){
+    	doSend(ipp, {'.tap':tapRequests[ipp]});
+        s.lastTapRequest = Date.now();
+    }
    });
 }
 
 
 function doConnect(arg, callback)
 {    
+    if( !self.me ) return;
+
 	//TODO disconnect: by id
 	var id = Date.now().toString();//TODO add a sequence # to the end. to ensure unique id if many connects happen in short period of time
 	var connector = {end:new hlib.Hash(arg.id), id:id, callback:callback, arg:arg};
