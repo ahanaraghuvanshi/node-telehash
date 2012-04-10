@@ -187,7 +187,7 @@ function doSignals(s, telex)
 	if( master.behindNAT() && !master.behindSNAT() ){
 		var me = getSelf();
 		if( me && me.end == telex['+end'] && telex['+pop'] ) {
-			var empty_telex = new Buffer(JSON.stringify({'.pop':1})+'\n', "utf8");
+			var empty_telex = new Buffer(JSON.stringify({})+'\n', "utf8");
 			var ipp = telex['+pop'].substr(3); //stip off the 'th:'
 			var ip = util.IP(ipp);
 			var port = util.PORT(ipp);

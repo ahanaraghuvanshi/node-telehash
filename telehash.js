@@ -193,7 +193,7 @@ function handleSeedTelex(telex,from,len){
 	    //delay...to allow time for SNAT detection (we need a response from another seed)
         setTimeout( function(){
             console.log("GOING ONLINE");            
-            self.me.visible = true;//become visible (announce our-selves in .see commands)
+            if(!self.snat) self.me.visible = true;//become visible (announce our-selves in .see commands)
 	        self.state = STATE.online;
             doPopTap();//only needed if we are behind NAT
 	        //pingSeeds();    	    
@@ -225,11 +225,12 @@ function handleTelex(telex, from, len)
 {
     if( self.me && from == self.me.ipp ) return;//dont process packets that claim to be from us! (we could be our own seed)
 
+/* dont introduce any new commands or headers ontop of the telehash spec. (keep it simple)!
     if( telex['.pop'] ) {
-	//TODO:someone just popped their firewall.. if we tried to contact them we might have to _ring them again
-	return;
+	    //TODO:someone just popped their firewall.. if we tried to contact them we might have to _ring them again
+	    return;
     }
-
+*/
     //must have a _to header in telex
     if( telex._to ){
 	if( self.snat ){
