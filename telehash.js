@@ -56,7 +56,7 @@ function getSelf(arg)
     self.server.bind(self.port ? parseInt(self.port) : 0, self.ip || '0.0.0.0');   
 
     // set up switch master callbacks
-    slib.setCallbacks({data:doData, sock:self.server, news:doNews, behindNAT:behindNAT, behindSNAT:behindSNAT});
+    slib.setCallbacks({data:doData, signals:doSignals, sock:self.server, news:doNews, nat:behindNAT, snat:behindSNAT});
 
     // start timer to monitor all switches and drop any over thresholds and not in buckets
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
@@ -151,13 +151,15 @@ function incomingDgram(msg,rinfo){
 		return;
 	}
 
+
 	if(telex['_OOB']){
-		//JSON formatted out of band data:
+		//JSON formatted out of band data
+        delete telex['_OOB'];
 		if(self.handleOOB) self.handleOOB(msg,rinfo);
 		return;	
 	}
 
-	//at this point we should have a telex
+	//at this point we should have a telex for processing
 	console.error("<--\t"+from+"\t"+msg.toString());
 
 	if( self.state == STATE.seeding ){
@@ -196,7 +198,7 @@ function handleSeedTelex(telex,from,len){
             if(!self.snat) self.me.visible = true;//become visible (announce our-selves in .see commands)
 	        self.state = STATE.online;
             doPopTap();//only needed if we are behind NAT
-	        //pingSeeds();    	    
+	        //pingSeeds();
 	        if(self.onSeeded) self.onSeeded();       
         },2000);
     }
@@ -257,11 +259,21 @@ function handleTelex(telex, from, len)
     slib.getSwitch(from).process(telex, len);
 }
 
+// process a validated telex that has data
+function doData(from,telex){  
+    
+    //this would be a data telex reponse to our outgoing +connect direct from the switch listening to the +end we are connecting to
+	for(var id in connectors){	  
+	  if( id == telex['connect']) {
+		connectors[id].callback( from, telex );
+		//delete connectors[id];
+		return;
+	  }	 
+	}
+}
 // process a validated telex that has data, commands, etc to be handled
-function doData(from, telex)
+function doSignals(from, telex)
 {
-    //console.log("GOT DATA telex:" + JSON.stringify(telex));
-	
     if(telex['+connect'] ){
 	  //handle incoming +connections
 	  listeners.forEach( function(listener){
@@ -273,16 +285,16 @@ function doData(from, telex)
 			}
 		}
 	  });
-	  
-	  //this would be a reponse to our outgoing +connect
+    
+    //this would be a relayed telex reponse to our outgoing +connect
 	for(var id in connectors){	  
 	  if( id == telex['+connect']) {
-		console.log("Found matching CONNECTOR");
 		connectors[id].callback( from, telex );
-		delete connectors[id];
+		//delete connectors[id];
 		return;
 	  }	 
 	}
+
     }
 }
 
@@ -404,8 +416,10 @@ function connectLoop()
     for(var id in connectors){
     var switches = slib.getNear( connectors[id].end );
     console.error("CONNECTOR:"+connectors[id].id);
-    switches.forEach( function(ipp){	
-        doSend(ipp,{'+end':connectors[id].end.toString(),'+connect':connectors[id].id,'+from':self.me.ipp,'+message':connectors[id].arg.message});
+    switches.forEach( function(ipp){
+        var telex = {'+end':connectors[id].end.toString(),'+connect':connectors[id].id,'+from':self.me.ipp,'+message':connectors[id].arg.message}; 
+        if(self.snat ) telex['+snat']=true;        
+        doSend(ipp,telex);
     });
    }
 }
@@ -416,9 +430,6 @@ function doSend(to, telex)
     //if a NAT/firewall supports 'hair-pinning' we can allow this..
     if( behindNAT() ){	
         if(self.me && util.isSameIP(self.me.ipp, to) ) return;	
-    	if(behindSNAT()){
-	    	telex._snat = 1;//tag our telexes with an _snat header
-        }
     }
 
     var s = slib.getSwitch(to);
@@ -427,13 +438,14 @@ function doSend(to, telex)
     if(telex['+end']){
         var end = telex['+end'];   
         if(!s.pings) s.pings = {};//track last ping time, indexed by +end hash
-        if( s.pings[end] && ((s.pings[end] + 30000 ) > Date.now()) ) return;
-        s.pings[end] = Date.now();        
+        if( s.pings[end] && ((s.pings[end] + 10000 ) > Date.now()) ) return;
+        s.pings[end] = Date.now();
     }
 
     if( s.via || s.seed ){
         //this switch has been '.see'n or is a seed should already be popped
         if(s.popped || self.snat ) s.send(telex);
+
     }else{
         //switch not learned from .see .. 
         //either it connected to us directly or we are trying to connect to it directly
@@ -487,7 +499,7 @@ function scan()
 
     // first just cull any not healthy, easy enough
     all.forEach(function(s){
-        if(!s.healthy()) s.drop();
+        if(!s.healthy()) s.purge();
     });
 
     all = slib.getSwitches();

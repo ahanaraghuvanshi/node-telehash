@@ -13,10 +13,10 @@ function server(){
 
 function onConnect( peer ){
 
-	console.log("NEW CLIENT: "+peer.ipp+" channel:"+peer.channel);
+	console.log("NEW CLIENT: "+peer.ipp);
 	peer.data = function(msg){
 	
-		this.send(msg);//echo message back
+		peer.send(msg);//echo message back
 		
 	}
 }

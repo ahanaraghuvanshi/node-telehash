@@ -1,5 +1,6 @@
 var telehash = require("./telehash");
 var hlib = require("./hash");
+var util = require("./util");
 
 exports.init = init;
 exports.connect = doClient;
@@ -9,7 +10,6 @@ var peers = {};
 var self;
 
 function init(arg){
-
   if( self ) return self;
   
   self = telehash.init({handleOOB:onOOBData, seeds:arg.seeds});
@@ -24,151 +24,93 @@ function init(arg){
 }
 
 function doClient( name, onConnect ){
-	console.log("Connecting...");	
-	telehash.connect({id:name}, function(s,telex){			
+	console.log("Connecting...to:",name);	
+	telehash.connect({id:name}, function(s,telex){
 		handleResponse(s,telex,onConnect);
 	});
 	
 }
 
 function doServer( name, onConnect ){
-	console.log("Listening...");	
-	telehash.listen( {id:name}, function(s,telex){		
+	console.log("Listening...for:",name);	
+	telehash.listen( {id:name}, function(s,telex){
 		handleConnect(s,telex,onConnect);
-	});    
+	});
 }
 
-function doNewPeer( peer ){
-	
-    peer.send = function(msg){
-		OOBSendRaw( peer.ipp, msg);
-	}
-	peer.data = function(msg){
-		//handle message from peer
-		//should be set by user
-	}
-	peer.callback( peer );
+function createNewPeer(id,from){
+    //return an object to use to communicate with the connected peer
+    var peer={  id:id,
+            ipp:from,
+            send:function(buffer){//msg should be a Buffer()
+                OOBSend(from,buffer);
+            },
+            data:function(msg){}//to be implemented by user to consume incoming packets
+    };
+    peers[from]=peer;
+    return peer;
 }
-
-function OOBSend(to, telex){
-	telex['_OOB']=true;
-	msg = new Buffer(JSON.stringify(telex)+'\n', "utf8");
-	OOBSendRaw(to,msg);
+function OOBSend(to,buffer){
+    try {
+        var json_data = JSON.parse(buffer.toString());
+        json_data['_OOB']=true;
+	    msg = new Buffer(JSON.stringify(json_data)+'\n', "utf8");
+	    OOBSendRaw(to,msg);
+	} catch(E) {
+		//!not json
+        OOBSendRaw(to,buffer);
+        return;
+	}
 }
 
 function OOBSendRaw(to,buffer){
-    var ip = IP(to);
-    var port = PORT(to);
+    var ip = util.IP(to);
+    var port = util.PORT(to);
     self.server.send(buffer, 0, buffer.length, port, ip);
 }
 
 function onOOBData(msg, rinfo){
     var from = rinfo.address + ":" + rinfo.port;
-    try {
-
-        var telex = JSON.parse(msg.toString());
-
-    } catch(E) {
 	//raw data - pass it to the callback for handling
 	for(var ipp in peers){
-		if(peers[ipp].ipp == from && peers[ipp].activated ){
+		if(peers[ipp].ipp == from ){
 			peers[ipp].data(msg);
 		}
 	}
-        return;
-    }
-	//telexes should be out of band channel management commands for opening the channel and activating it.
-	//other end of the channel should have received a telex with the channel number and we are excpecting 
-	//a channel open message.
-    //console.log("OOB DATA:"+JSON.stringify(telex));
-    for( var ipp in peers){
-	if( ipp == from ){
-		//strict will only happen if both ends not behind symmetric NATs
-		if(peers[ipp].ipp == from && peers[ipp].channel==telex['channel'] && peers[ipp].id==telex['id']){
-			if(!peers[ipp].activated) doNewPeer( peers[ipp] );
-			peers[ipp].activated = true;
-			return;
-		}
-	}
-
-    }
-	//..helper for SNAT ends
-	//gone through all the peers and no match
-    //lets look for a valid channel+id
-    for( var ipp in peers){
-	if( peers[ipp].channel == telex['channel'] && peers[ipp].id==telex['id'])
-	{
-		//likely we are not behind NAT or very nice NAT indeed (or this is spoofed!)			
-		//and the other end is behind a symmetric NAT.. check for atleast the same IP
-		if( IP(from) == IP(peers[ipp].ipp)){
-			var newpeer = {id:telex['id'],channel:telex['channel'],ipp:from, callback:peers[ipp].callback};
-			if(!peers[from]){
-				peers[from]=newpeer;
-				peers[from].activated = true;
-				doNewPeer(newpeer);
-			}
-			//send a new 'channel open' message as most likely other end didn't receive it
-			OOBSend( from, {id:newpeer.id,channel:newpeer.channel,ipp:self.me.ipp});
-		}	
-	}
-    }
-}
-function IP(ipp){
-	return ipp.substr(0, ipp.indexOf(':'));
-}
-function PORT(ipp){
-	return parseInt(ipp.substr(ipp.indexOf(':')+1));
 }
 function handleConnect(s, telex, callback){
 	console.log("Got A +CONNECT request from: " + telex['+from']+"+connect="+telex['+connect']+" via:"+s.ipp);	
 
+    var end = new hlib.Hash(telex['+from']).toString();
 	var from = telex['+from'];
 	var id = telex['+connect'];
-	var reply = {};
-	reply['+connect'] = id; //match the connection IDs
-	reply['+from'] = self.me.ipp;
-	
-	if(!peers[from]) {
-		console.log("creating new channel");
-		peers[from]={id:id, ipp:from, channel:Math.floor((Math.random() * 65535) + 1), callback:callback};//setup a new channel#
-	}
 
-	reply['+channel']=peers[from].channel;
+    //if we are behind NAT, and remote end is behind SNAT or we are both behind the same NAT send back via relay
+    if( self.nat && (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)) ){
+	    
+        s.send( {'+end':end,'+message':"CONNECT_FAILED",'+connect':id, '+from':self.me.ipp} );//signals to be relayed back
 
-	if( s.ipp == telex['+from'] ){
-		//this is a direct message from switch originating the +connect
-		//send reply telex without +end
-		//this is quite rare and might only happen if there are very few switches in the DHT
-		s.send(reply);
-
-	}else{
-		telehash.send(from, reply);
-		//this was a relayed telex				
-		//if( telex._snat) { //the _snat header will not survive a relay..only signals are relayed by official switch implementation
-			//send telex with +end = hash(from.ipp)		
-			//this method to contact the switch behin symmetric NAT via relay. it should have done a farListen()
-			//to receive this response.
-			reply['+end'] = new hlib.Hash(from).toString();
-			s.send(reply);	
-		//}
-	}
-
-	setTimeout(function(){
-		//this will send an out of band 'channel open' message
-		OOBSend( from, {id:id,channel:peers[from].channel,ipp:self.me.ipp});
-	},1000);//allow time for other end to get the telex with the new channel#
+    }else{
+        telehash.send(from, {'from':self.me.ipp, 'connect':id, 'message':'OK'});//data telex informing them of our ip:port
+        if(!peers[from]){
+            callback(createNewPeer(id, from));
+    	}
+    }
 }
 
 function handleResponse(s, telex, callback){
-	console.log("GOT RESPONSE from: "+telex['+from']+"+connect="+telex['+connect']+" channel="+telex['+channel']+" via:"+s.ipp);
- 
-    var from = telex['+from'];
-	var id = telex['+connect'];
-        if(!peers[from]){		
-		peers[from] = {id:id, channel:telex['+channel'], ipp:from, callback:callback};
-	}
-	//send out an out of band 'channel open' message.
-	OOBSend( from, {id:id,channel:peers[from].channel,ipp:self.me.ipp});
+    if( telex['+message'] == "CONNECT_FAILED" ){
+        console.log("CONNECT FAILED");
+        return;
+    }
 
+	console.log("GOT OK from: "+telex['from']+"connect="+telex['connect']);
+ 
+    var from = telex['from'];
+	var id = telex['connect'];
+
+    if(!peers[from]){
+        callback( createNewPeer(id, from));
+	}
 }
 

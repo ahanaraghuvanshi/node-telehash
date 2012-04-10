@@ -8,7 +8,7 @@ var network = {};
 
 // callbacks must be set first, and must have 
 // .data(switch, {telex for app}) and .sock.send() being udp socket send, news(switch) for new switch creation
-var master = {data:function(){}, sock:{send:function(){}}, news:function(){}};
+var master = {data:function(){}, signals:function(){}, sock:{send:function(){}}, news:function(){}};
 exports.setCallbacks = function(m)
 {
     master = m;
@@ -124,11 +124,11 @@ function worker(telex, callback)
     // if there's any signals, check for matching taps to relay to
     if(Object.keys(telex).some(function(x){ return x[0] == '+' }) && !(parseInt(telex['_hop']) >= 4)) {
 		doSignals(s, telex);
-		master.data(s,telex);
+		master.signals(s,telex);
     }
 
     // if there's any raw data, send to master
-    // if(Object.keys(telex).some(function(x){ return (x[0] != '+' && x[0] != '.' && x[0] != '_') })) master.data(s, telex);
+    if(Object.keys(telex).some(function(x){ return (x[0] != '+' && x[0] != '.' && x[0] != '_') })) master.data(s, telex);
 
     callback();
 }
@@ -153,7 +153,7 @@ function doSee(s, see)
 
     see.forEach(function(ipp){
 
-	if(master.behindNAT() ){
+	if(master.nat() ){
 	  //if we are behing NAT and this new switch matches our ip then it is behind the same NAT
 	  //we can't talk so ignore it.(unless the NAT router supports hair pinning..which is rare)
 	  if(util.isSameIP(me.ipp, ipp) ) return;		
@@ -184,7 +184,7 @@ function doSignals(s, telex)
 {    
     	//only if we are not behind a symmetric NAT, parse the th:ipp and send them an empty telex to pop!
 	//we dont need to pop if we are not behind a NAT..
-	if( master.behindNAT() && !master.behindSNAT() ){
+	if( master.nat() && !master.snat() ){
 		var me = getSelf();
 		if( me && me.end == telex['+end'] && telex['+pop'] ) {
 			var empty_telex = new Buffer(JSON.stringify({})+'\n', "utf8");
@@ -236,7 +236,6 @@ Switch.prototype.relay = function(telex, arg){
 
    Object.keys(telex).forEach(function(key){
 		//stip off headers
-	        //if( key == '_snat' ) return; //should we strip off the _snat header ? 
 	        if( key == '_line' ) return; //this will be set by .send anyway
 	        if( key == '_br' ) return;   // "
 	        if( key == '_to' ) return;  // "

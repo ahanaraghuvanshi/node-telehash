@@ -14,12 +14,15 @@ function server(name){
 	telehash.listen({id:name}, function(s,telex){				
 		console.log("Incoming telex:"+JSON.stringify(telex)+" via:"+s.ipp);
 		console.log("MESSAGE:",telex['+message']);
-		//if remote end is behind SNAT or we are behind the same NAT send back via relay via switch s
-		if(telex._snat || util.IP(telex['+from']) == util.IP(telex._to)){
+
+		//if remote end is behind SNAT or we are behind the same NAT send back via relay
+		if(telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)){
+
 			var end = new hlib.Hash(telex['+from']).toString();	
-		        s.send( {'+end':end,'+message':telex['+message'],'+connect':telex['+connect']} );
+		    s.send( {'+end':end,'+message':telex['+message'],'+connect':telex['+connect']} );//signals to be relayed back
+
 		}else{
-			telehash.send( telex['+from'], {'+message':telex['+message'],'+connect':telex['+connect']});
+			telehash.send( telex['+from'], {'message':telex['+message'],'connect':telex['+connect']});//data telex
 		}
 	});
 }

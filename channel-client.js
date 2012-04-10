@@ -17,7 +17,7 @@ function onConnect( server ){
 	console.log("CONNECTED");
 	server.data = function(msg){
 
-		console.log("data from server: " + msg.toString()+"on channel:"+server.channel);
+		console.log("data from server: " + msg.toString() );
 	}
 
 	setInterval( function(){				
