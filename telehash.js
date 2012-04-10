@@ -73,7 +73,6 @@ function behindSNAT(){
 	return (self.snat == true);
 }
 
-
 function resetIdentity(){
     if( self.me ) {
         self.me.purge();
@@ -151,6 +150,7 @@ function incomingDgram(msg,rinfo){
 		if(self.handleOOB) self.handleOOB(msg,rinfo);
 		return;
 	}
+
 	if(telex['_OOB']){
 		//JSON formatted out of band data:
 		if(self.handleOOB) self.handleOOB(msg,rinfo);
@@ -299,33 +299,14 @@ function sendPOPRequest(ipp){
 
 function doNews(s)
 {
-   //new .seen switch
+    //new .seen switch
     s.visible = true;
-
-   if(self.snat){
-	s.send({'+end':self.me.end}); //ping the new switch
-	s.popped = true;
-	return;
-   }
-
-   //send a +pop to s.via? since it most likely has a line open with the switch we have just .seen
-   //informig the switch we wish to connect to to open its firewall to allow us through
-   //slib.getSwitch(s.via).send({'+end':s.end, '+pop':'th:'+self.me.ipp});
-   sendPOPRequest(s.ipp);
-   s.popped = true;
-
-    //allow about 2s for new switch to pop its firewall before we ping it.
-    setTimeout(function(){
-        if(self.me){
-            s.send({'+end':self.me.end});
-        }
-    },2000);
-
-   // TODO if we're actively listening, and this is closest yet, ask it immediately
+    doSend(s.ipp, {'+end':self.me.end});
+    // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
 
 function doPopTap(){
-    if( self.nat ) {
+    if( self.nat && !self.snat ) {
       console.error("Tapping +POPs...");
       listeners.push( {hash:self.me.hash, end:self.me.end, rule:{'is':{'+end':self.me.end}, 'has':['+pop']}} );
       //setTimeout( sendTapRequests, 2000);
@@ -364,18 +345,16 @@ function doListen(arg, callback)
 
 function listenLoop(){
 
-   var count = 0; 
-   //look for closer switches
-   listeners.forEach( function(listener){
-     count++;
-     console.log(count+":LISTENER:"+JSON.stringify(listener.rule));
-     //if(self.me && self.me.end == listener.end ) return;//should allow if we are behind symmetric NAT -- will help
-     slib.getNear( listener.hash ).forEach( function(ipp){	
-	doSend(ipp, {'+end':listener.end});
-     });	
-   });
-
-   sendTapRequests();
+    var count = 0; 
+    //look for closer switches
+    listeners.forEach( function(listener){
+        count++;
+        console.log(count+":LISTENER:"+JSON.stringify(listener.rule));     
+        slib.getNear( listener.hash ).forEach( function(ipp){
+            doSend(ipp, {'+end':listener.end});
+        });
+    });
+    sendTapRequests();
 }
 
 function sendTapRequests(){
@@ -420,29 +399,25 @@ function doConnect(arg, callback)
 
 function connectLoop()
 {
-   // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
-   for(var id in connectors){
-        var switches = slib.getNear( connectors[id].end );
-	console.error("CONNECTOR:"+connectors[id].id);
-	switches.forEach( function(ipp){	
-		doSend(ipp,{'+end':connectors[id].end.toString(),
-			  '+connect':connectors[id].id,
-			  '+from':self.me.ipp,
-			  '+message':connectors[id].arg.message});
-	});
+    // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
+    for(var id in connectors){
+    var switches = slib.getNear( connectors[id].end );
+    console.error("CONNECTOR:"+connectors[id].id);
+    switches.forEach( function(ipp){	
+        doSend(ipp,{'+end':connectors[id].end.toString(),'+connect':connectors[id].id,'+from':self.me.ipp,'+message':connectors[id].arg.message});
+    });
    }
 }
 
 function doSend(to, telex)
 {   
-
-   //dont send to ip if it matches our's unless it is a local interface
-   //if a NAT/firewall supports 'hair-pinning' we can allow this..
-   if( behindNAT() ){	
-	if(self.me && util.isSameIP(self.me.ipp, to) ) return;	
-	if(behindSNAT()){
-		telex._snat = 1;//tag our telexes with a _snat header
-	}
+    //dont send to ip if it matches our's unless it is a local interface
+    //if a NAT/firewall supports 'hair-pinning' we can allow this..
+    if( behindNAT() ){	
+        if(self.me && util.isSameIP(self.me.ipp, to) ) return;	
+    	if(behindSNAT()){
+	    	telex._snat = 1;//tag our telexes with an _snat header
+        }
     }
 
     var s = slib.getSwitch(to);
@@ -458,22 +433,20 @@ function doSend(to, telex)
     if( s.via || s.seed ){
         //this switch has been '.see'n or is a seed should already be popped
         if(s.popped || self.snat ) s.send(telex);
-		
     }else{
-	//switch not learned from .see .. 
-	//either it connected to us directly or we are trying to connect to it directly
-	if(s.popped || self.snat ) {
-		s.send(telex);
-	}else{
-		//we need to +pop it, first time connecting..		
-		sendPOPRequest(to);
-		s.popped = true;
-		setTimeout(function(){		  
-		  s.send(telex);
-	       },2000);
-	}
+        //switch not learned from .see .. 
+        //either it connected to us directly or we are trying to connect to it directly
+        if(s.popped || self.snat ) {
+            s.send(telex);
+        }else{
+            //we need to +pop it, first time connecting..		
+            sendPOPRequest(to);
+            s.popped = true;
+            setTimeout(function(){		  
+                s.send(telex);
+            },2000);
+    	}
     }
-
 }
 
 function doShutdown()
@@ -481,13 +454,15 @@ function doShutdown()
     clearTimeout(self.scanTimeout);
     clearInterval(self.connect_listen_Interval);
     if(self.seedTimeout) {
-        self.seeding("shutdown"); // a callback still waiting?!
+        self.onSeeded("shutdown"); // a callback still waiting?!
         delete self.seedTimeout;        
     }
     // drop all switches
     slib.getSwitches().forEach(function(s){ s.purge() });
     self.server.close();
     self = undefined;
+    listeners = undefined;
+    connectors = undefined;
 }
 
 function connect_listen(){
