@@ -234,7 +234,7 @@ function handleTelex(telex, from, len)
     if( telex._to ){
 	if( self.snat ){
 		//_to will not match self.me.ipp because we are behind SNAT but at least ip should match
-		if( self.me.ip != utils.IP(telex._to)) return;
+		if( self.me.ip != util.IP(telex._to)) return;
 	}else{
 		//_to must equal our ipp
 		if( self.me.ipp != telex._to ) return;
