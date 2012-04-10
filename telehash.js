@@ -393,10 +393,9 @@ function sendTapRequests(){
     var s = slib.getSwitch(ipp);
 	if( !s.line) return;
     //dont send .tap too often.. need to allow time to get closer to the end we are interested in
-    if(!s.lastTapRequest || (s.lastTapRequest && (Date.now() > (s.lastTapRequest +40000)))){
-    	doSend(ipp, {'.tap':tapRequests[ipp]});
-        s.lastTapRequest = Date.now();
-    }
+    if(s.lastTapRequest && (s.lastTapRequest + 40000 > Date.now())) return;
+    doSend(ipp, {'.tap':tapRequests[ipp]});
+    s.lastTapRequest = Date.now();    
    });
 }
 
@@ -425,8 +424,8 @@ function connectLoop()
    for(var id in connectors){
         var switches = slib.getNear( connectors[id].end );
 	console.error("CONNECTOR:"+connectors[id].id);
-	switches.forEach( function(s){	
-		doSend(s,{'+end':connectors[id].end.toString(),
+	switches.forEach( function(ipp){	
+		doSend(ipp,{'+end':connectors[id].end.toString(),
 			  '+connect':connectors[id].id,
 			  '+from':self.me.ipp,
 			  '+message':connectors[id].arg.message});
@@ -447,10 +446,18 @@ function doSend(to, telex)
     }
 
     var s = slib.getSwitch(to);
-	
+
+    //eliminate duplicate +end/ping signals going to same switch in short-span of time.
+    if(telex['+end']){
+        var end = telex['+end'];   
+        if(!s.pings) s.pings = {};//track last ping time, indexed by +end hash
+        if( s.pings[end] && ((s.pings[end] + 30000 ) > Date.now()) ) return;
+        s.pings[end] = Date.now();        
+    }
+
     if( s.via || s.seed ){
-	//this switch has been '.see'n or is a seed should already be popped
-	if(s.popped || self.snat ) s.send(telex);
+        //this switch has been '.see'n or is a seed should already be popped
+        if(s.popped || self.snat ) s.send(telex);
 		
     }else{
 	//switch not learned from .see .. 
