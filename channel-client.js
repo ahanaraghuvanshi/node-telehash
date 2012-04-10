@@ -10,6 +10,8 @@ function connect() {
     //this will establish a connection to any switche(s) on the network
     //listening for 'telehash.echo.server'. onConnect will be called for each remote switch
     //which accepts the connection request.
+    //note: The connect process is continious and will keep attempting to connect to all and any switches
+    //on the network, as they join and leave.
     channels.connect("telehash.echo.server", onConnect);    
 }
 
@@ -22,6 +24,7 @@ function onConnect(server) {
         console.log("data from server: " + msg.toString());
     }
 
+    //simply send a 'Hello!' every 5 seconds..
     setInterval(function () {
     	//the send method in the server object is used to send a datagram to the remote switch
         server.send(new Buffer("Hello!"));
