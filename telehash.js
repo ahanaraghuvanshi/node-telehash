@@ -438,27 +438,19 @@ function doSend(to, telex)
     if(telex['+end']){
         var end = telex['+end'];   
         if(!s.pings) s.pings = {};//track last ping time, indexed by +end hash
-        if( s.pings[end] && ((s.pings[end] + 10000 ) > Date.now()) ) return;
+        if( s.pings[end] && ((s.pings[end] + 25000 ) > Date.now()) ) return;
         s.pings[end] = Date.now();
     }
 
-    if( s.via || s.seed ){
-        //this switch has been '.see'n or is a seed should already be popped
-        if(s.popped || self.snat ) s.send(telex);
-
+    if(s.popped || self.snat ) {
+         s.send(telex);
     }else{
-        //switch not learned from .see .. 
-        //either it connected to us directly or we are trying to connect to it directly
-        if(s.popped || self.snat ) {
-            s.send(telex);
-        }else{
-            //we need to +pop it, first time connecting..		
-            sendPOPRequest(to);
-            s.popped = true;
-            setTimeout(function(){		  
-                s.send(telex);
-            },2000);
-    	}
+         //we need to +pop it, first time connecting..		
+         sendPOPRequest(to);
+         s.popped = true;
+         setTimeout(function(){		  
+             s.send(telex);
+         },2000);
     }
 }
 
@@ -525,7 +517,7 @@ function scan()
 */
     //ping all...
     all.forEach( function(s){
-	if(s.popped || self.snat ) s.send({"+end":self.me.end});
+	doSend(s.ipp, {"+end":self.me.end});
     });
 
     //if we lost connection to all initial seeds.. ping them all again?
