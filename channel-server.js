@@ -1,22 +1,24 @@
 var channels = require('./channels');
 
 channels.init({
-	//seeds:['172.16.200.253:42424'],
-	ready:function(){
-		server();		
-	}		
+    ready: function () { //called when we are seeded
+        server();
+    }
 });
 
-function server(){
-	channels.listen("telehash.echo.server", onConnect );
+function server() {
+    //will listen for connections to 'telehash.echo.server'
+    //onConnect will be called when a remote switch establish a connection to us
+    channels.listen("telehash.echo.server", onConnect);
 }
 
-function onConnect( peer ){
+function onConnect(peer) {
 
-	console.log("NEW CLIENT: "+peer.ipp);
-	peer.data = function(msg){
-	
-		peer.send(msg);//echo message back
-		
-	}
+    //when a remote switch connects to us we can communicate back to them through the peer object
+    console.log("NEW CLIENT: " + peer.ipp);
+    peer.data = function (msg) {
+	//we receive data through a callback to the the data function
+	//and we can send a reply back using the send function. msg is of type Buffer()
+        peer.send(msg); //echo message back
+    }
 }
