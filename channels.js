@@ -9,108 +9,139 @@ exports.listen = doServer;
 var peers = {};
 var self;
 
-function init(arg){
-  if( self ) return self;
-  
-  self = telehash.init({handleOOB:onOOBData, seeds:arg.seeds});
+function init(arg) {
+    if (self) return self;
 
-  telehash.seed( function(err){
-        if ( err ){
-                console.log(err);
-                return;
+    self = telehash.init({
+        handleOOB: onOOBData,	//capture out-of-band packets coming into the switch
+        seeds: arg.seeds
+    });
+
+    telehash.seed(function (err) {
+        if (err) {
+            console.log(err);
+            return;
         }
-	if(arg.ready) arg.ready();
-  });
+        //inform consumer of module that we are seeded so they can start to connect/listen
+        if (arg.ready) arg.ready(); 
+    });
 }
 
-function doClient( name, onConnect ){
-	console.log("Connecting...to:",name);	
-	telehash.connect({id:name}, function(s,telex){
-		handleResponse(s,telex,onConnect);
-	});
-	
+//using the telehash.connect() function find switches on the network listening for 'name'
+//and establish a line to them. the connection setup is handeled by handleResponse which will
+//callback onConnect with a new peer handler object
+function doClient(name, onConnect) {
+    console.log("Connecting...to: ", name);
+    telehash.connect({
+        id: name
+    }, function (s, telex) {
+        handleResponse(s, telex, onConnect);
+    });
+
 }
 
-function doServer( name, onConnect ){
-	console.log("Listening...for:",name);	
-	telehash.listen( {id:name}, function(s,telex){
-		handleConnect(s,telex,onConnect);
-	});
+//using the telehash.listen() function accept connections from switches on the network looking for 'name'
+//establishing a line to them. The connectio setup is handled by handleConnect which will callback onConnect 
+//with a new peer handler object
+function doServer(name, onConnect) {
+    console.log("Listening...for:", name);
+    telehash.listen({
+        id: name
+    }, function (s, telex) {
+        handleConnect(s, telex, onConnect);
+    });
 }
 
-function createNewPeer(id,from){
+function createNewPeer(id, from) {
     //return an object to use to communicate with the connected peer
-    var peer={  id:id,
-            ipp:from,
-            send:function(buffer){//msg should be a Buffer()
-                OOBSend(from,buffer);
-            },
-            data:function(msg){}//to be implemented by user to consume incoming packets
+    var peer = {
+        id: id,
+        ipp: from,
+        send: function (buffer) { //msg should be a Buffer()
+            OOBSend(from, buffer);
+        },
+        data: function (msg) {} //to be implemented by user to consume incoming packets
     };
-    peers[from]=peer;
+    peers[from] = peer;
     return peer;
 }
-function OOBSend(to,buffer){
+
+//function to access underlying switch udp-socket to send raw data, or json out-of-band.
+//The switch will automatically assume non json datagrams are out of band, but inorder for the
+//switch not to interpret channels json data as telexes we have to mark them with a _OOB header.
+//The _OOB header will be stripped at the receiving end.
+function OOBSend(to, buffer) {
     try {
         var json_data = JSON.parse(buffer.toString());
-        json_data['_OOB']=true;
-	    msg = new Buffer(JSON.stringify(json_data)+'\n', "utf8");
-	    OOBSendRaw(to,msg);
-	} catch(E) {
-		//!not json
-        OOBSendRaw(to,buffer);
+        json_data['_OOB'] = true;
+        msg = new Buffer(JSON.stringify(json_data) + '\n', "utf8");
+        OOBSendRaw(to, msg);
+    } catch (E) {
+        //not json
+        OOBSendRaw(to, buffer);
         return;
-	}
+    }
 }
 
-function OOBSendRaw(to,buffer){
+//this actually sends the data on the socket.
+function OOBSendRaw(to, buffer) {
     var ip = util.IP(to);
     var port = util.PORT(to);
     self.server.send(buffer, 0, buffer.length, port, ip);
 }
 
-function onOOBData(msg, rinfo){
+//this will be called when we get out-of-band data from the underlying switch which
+//should be coming from a peer we have already established a connection with!
+function onOOBData(msg, rinfo) {
     var from = rinfo.address + ":" + rinfo.port;
-	//raw data - pass it to the callback for handling
-	for(var ipp in peers){
-		if(peers[ipp].ipp == from ){
-			peers[ipp].data(msg);
-		}
-	}
-}
-function handleConnect(s, telex, callback){
-	console.log("Got A +CONNECT request from: " + telex['+from']+"+connect="+telex['+connect']+" via:"+s.ipp);	
-
-    var end = new hlib.Hash(telex['+from']).toString();
-	var from = telex['+from'];
-	var id = telex['+connect'];
-
-    //if we are behind NAT, and remote end is behind SNAT or we are both behind the same NAT send back via relay
-    if( self.nat && (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)) ){
-	    
-        s.send( {'+end':end,'+message':"CONNECT_FAILED",'+connect':id, '+from':self.me.ipp} );//signals to be relayed back
-
-    }else{
-        telehash.send(from, {'from':self.me.ipp, 'connect':id, 'message':'OK'});//data telex informing them of our ip:port
-        if(!peers[from]){
-            callback(createNewPeer(id, from));
-    	}
+    //raw data - pass it to the callback for handling
+    for (var ipp in peers) {
+        if (peers[ipp].ipp == from) {
+            peers[ipp].data(msg);	//found the matching peer handler, pass it the data
+        }
     }
 }
 
-function handleResponse(s, telex, callback){
-    if( telex['+message'] == "CONNECT_FAILED" ){
+function handleConnect(s, telex, callback) {
+    console.log("Got A +CONNECT request from: " + telex['+from'] + "+connect=" + telex['+connect'] + " via:" + s.ipp);
+
+    var end = new hlib.Hash(telex['+from']).toString();
+    var from = telex['+from'];
+    var id = telex['+connect'];
+
+    //if we are behind NAT, and remote end is behind SNAT or we are both behind the same NAT send back via relay
+    if (self.nat && (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to))) {
+
+        s.send({
+            '+end': end,
+            '+message': "CONNECT_FAILED",
+            '+connect': id,
+            '+from': self.me.ipp
+        }); //signals to be relayed back
+    } else {
+        telehash.send(from, {
+            'from': self.me.ipp,
+            'connect': id,
+            'message': 'OK'
+        }); //data telex informing them of our ip:port
+        if (!peers[from]) {
+            callback(createNewPeer(id, from));
+        }
+    }
+}
+
+function handleResponse(s, telex, callback) {
+    if (telex['+message'] == "CONNECT_FAILED") {
         console.log("CONNECT FAILED");
         return;
     }
 
-	console.log("GOT OK from: "+telex['from']+"connect="+telex['connect']);
- 
+    console.log("GOT OK from: " + telex['from'] + "connect=" + telex['connect']);
+
     var from = telex['from'];
-	var id = telex['connect'];
+    var id = telex['connect'];
 
-    if(!peers[from]){
-        callback( createNewPeer(id, from));
-	}
+    if (!peers[from]) {
+        callback(createNewPeer(id, from));
+    }
 }
-
