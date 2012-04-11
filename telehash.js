@@ -75,7 +75,7 @@ function getSelf(arg) {
     // start timer to monitor all switches and drop any over thresholds and not in buckets
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
     // start timer to send out .tap and discover switches closer to the ends we want to .tap
-    self.connect_listen_Interval = setInterval(connect_listen, 10000);
+    self.connect_listen_Interval = setInterval(connect_listen, 5000);
 
     return self;
 }
@@ -279,10 +279,10 @@ function handleTelex(telex, from, len) {
 function doData(from, telex) {
 
     //this would be a data telex reponse to our outgoing +connect direct from the switch listening for the +end we are connecting to
-    for (var id in connectors) {
-        if (id == telex['connect']) {
-            connectors[id].callback(from, telex);
-            //delete connectors[id];
+    for (var cid in connectors) {
+        if (cid == telex['connect']) {
+            connectors[cid].callback(from, telex);
+            //delete connectors[cid];
             return;
         }
     }
@@ -294,19 +294,18 @@ function doSignals(from, telex) {
         //handle incoming connections
         listeners.forEach(function (listener) {
             if (listener.end == telex['+end']) {
-                console.error("Found matching LISTENER");
                 if (listener.cb) {
-                    console.error("CALLBACK() for listener.");
                     listener.cb(from, telex);
+                    return;
                 }
             }
         });
 
         //this would be a relayed telex reponse to our outgoing +connect
-        for (var id in connectors) {
-            if (id == telex['+connect']) {
-                connectors[id].callback(from, telex);
-                //delete connectors[id];
+        for (var cid in connectors) {
+            if (cid == telex['+connect']) {
+                connectors[cid].callback(from, telex);
+                //delete connectors[cid];
                 return;
             }
         }
@@ -352,9 +351,8 @@ function doPopTap() {
             }
         });
         //setTimeout( sendTapRequests, 2000);
-        sendTapRequests();
+        sendTapRequests(true);
         //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
-        //allow at least initial telexes from seeds to be processed before sending out taps
     }
 }
 
@@ -375,7 +373,8 @@ function doFarListen(arg, callback) {
         hash: hash,
         end: end.toString(),
         rule: rule,
-        cb: callback
+        cb: callback,
+        far: true
     };
     listeners.push(listener);
     console.log("DOING FAR LISTEN");
@@ -408,7 +407,7 @@ function doListen(arg, callback) {
 }
 
 function listenLoop() {
-
+    if (self && self.state != STATE.online) return;
     var count = 0;
     //look for closer switches
     listeners.forEach(function (listener) {
@@ -424,8 +423,8 @@ function listenLoop() {
 }
 
 
-function sendTapRequests() {
-
+function sendTapRequests( noRateLimit ) {
+    var limit = noRateLimit ? false : true;
     var tapRequests = {}; //hash of .tap arrays indexed by switch.ipp 
     //loop through all listeners and agregate the .tap rules for each switch
     listeners.forEach(function (listener) {
@@ -440,27 +439,29 @@ function sendTapRequests() {
         var s = slib.getSwitch(ipp);
         if (!s.line) return; //only send out the .tap request of we have a line open
         //don't send .tap too often.. need to allow time to get closer to the end we are interested in
-        if (s.lastTapRequest && (s.lastTapRequest + 40000 > Date.now())) return;
+        if (limit && s.lastTapRequest && (s.lastTapRequest + 40000 > Date.now())) return;
         doSend(ipp, {
             '.tap': tapRequests[ipp]
         });
-        s.lastTapRequest = Date.now();
+        if(limit) s.lastTapRequest = Date.now();
     });
 }
 
 //setup a connector to indicate what ends we want to send +connect signals to
+
 function doConnect(arg, callback) {
     if (!self.me) return;
 
-    //TODO disconnect: by id
-    var id = Date.now().toString(); //TODO add a sequence # to the end. to ensure unique id if many connects happen in short period of time
+    //TODO disconnect: by cid
+    var cid = Date.now().toString(); //TODO add a sequence # to the end. to ensure unique id if many connects happen in short period of time
     var connector = {
         end: new hlib.Hash(arg.id),
-        id: id,
+        id: arg.id,
+        cid: cid,
         callback: callback,
-        arg: arg
+        message: arg.message
     };
-    connectors[id] = connector;
+    connectors[cid] = connector;
 
     //helper if we are behind symmetric NAT
     //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..
@@ -471,20 +472,22 @@ function doConnect(arg, callback) {
     }, undefined);
     //}
     console.log("ADDED CONNECTOR");
-    return id; //for disconnecting
+    connectLoop(); //kick start connector
+    return cid; //for disconnecting
 }
 
 function connectLoop() {
+    if (self && self.state != STATE.online) return;
     // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
-    for (var id in connectors) {
-        var switches = slib.getNear(connectors[id].end);
-        console.log("CONNECTOR:",connectors[id].id," message:",connectors[id].arg.message);
+    for (var cid in connectors) {
+        var switches = slib.getNear(connectors[cid].end);
+        console.log("CONNECTOR:",connectors[cid].id," message:",connectors[cid].message);
         switches.forEach(function (ipp) {
             var telex = {
-                '+end': connectors[id].end.toString(),
-                '+connect': connectors[id].id,
+                '+end': connectors[cid].end.toString(),
+                '+connect': cid,
                 '+from': self.me.ipp,
-                '+message': connectors[id].arg.message
+                '+message': connectors[cid].message
             };
             if (self.snat) telex['+snat'] = true;
             doSend(ipp, telex);
@@ -503,10 +506,10 @@ function doSend(to, telex) {
 
     //eliminate duplicate +end/ping signals going to same switch in short-span of time.
     //but allow our +connect signals through unhindered
-    if (telex['+end'] && !telex['+connect']) {
+    if (telex['+end']) {
         var end = telex['+end'];
         if (!s.pings) s.pings = {}; //track last ping time, indexed by +end hash
-        if (s.pings[end] && ((s.pings[end] + 25000) > Date.now())) return;
+        if (s.pings[end] && ((s.pings[end] + 15000) > Date.now())) return;
         s.pings[end] = Date.now();
     }
 
@@ -541,12 +544,9 @@ function doShutdown() {
 }
 
 function connect_listen() {
-    if (self.state) {
-        if (self.state != STATE.online) return;
-        console.error("Connect/Listen Loop");
-        listenLoop();
-        connectLoop();
-    }
+    if (self && self.state != STATE.online) return;
+    listenLoop();
+    connectLoop();
 }
 
 // scan all known switches regularly to keep a good network map alive and trim the rest
