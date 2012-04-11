@@ -62,19 +62,26 @@ function getNear(endh, s, num) {
 exports.getNear = getNear;
 
 // every seen IPP becomes a switch object that maintains itself
-function Switch(ipp, via) {
+function Switch(ipp, arg) {
     // initialize the absolute minimum here to keep this lightweight as it's used all the time
     this.ipp = ipp;
     this.hash = new hlib.Hash(ipp);
     network[this.ipp] = this;
     this.end = this.hash.toString();
-    this.via = via; // optionally, which switch introduced us
+    if(arg) this.via = arg.via; // optionally, which switch introduced us
     this.ATinit = Date.now();
     this.misses = 0;
     this.seed = false;
     this.ip = this.ipp.substr(0, this.ipp.indexOf(':'));
     this.port = parseInt(this.ipp.substr(this.ipp.indexOf(':') + 1));
     console.log("New Switch created: " + this.ipp);
+    if( arg && (arg.via || arg.init) ){
+        //this switch has been .seen or we are created directly using 'new Switch(ipp, {init:true})'
+        master.news(this);//pop it, ping it and open a line!
+    }else{
+        //the switch is being created indirectly by getSwitch(ipp) when we get a new telex from an unknown switch
+        //or when we are trying to send a telex to a yet unknown switch.
+    }
     return this;
 }
 exports.Switch = Switch;
@@ -165,9 +172,11 @@ function doSee(s, see) {
             if (util.isPrivateIP(me.ipp) && util.isPublicIP(ipp)) return;
             if (util.isPublicIP(me.ipp) && util.isPrivateIP(ipp)) return;
         }
-        if (network[ipp]) return;
-        console.log('.seeing ' + ipp);
-        master.news(new Switch(ipp, s.ipp));
+        if (!network[ipp]) {
+            console.log('.seeing ' + ipp);
+            var new_switch = new Switch(ipp, {via:s.ipp});//add it to the network
+        }
+        network[ipp].visible = true;
     });
 }
 
@@ -190,7 +199,7 @@ function doSignals(s, telex) {
             var ip = util.IP(ipp);
             var port = util.PORT(ipp);
             master.sock.send(empty_telex, 0, empty_telex.length, port, ip);
-            console.log("Sending EMPTY TELEX TO:" + ip + ":" + port);
+            console.error("popping firewall to:" + ip + ":" + port);
             return;
         }
     }

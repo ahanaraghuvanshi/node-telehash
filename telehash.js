@@ -4,19 +4,26 @@ var hlib = require('./hash');
 var util = require('./util');
 
 // high level exported functions
-// init({port:42424, seeds:['1.2.3.4:5678]}) - pass in custom settings other than defaults, optional but if used must be called first!
+// init({port:42424, seeds:['1.2.3.4:5678], handleOOB:function(data){} })
+// use it to pass in custom settings other than defaults, optional but if used must be called first!
 exports.init = getSelf;
 
 // seed(function(err){}) - will start seeding to dht, calls back w/ error/timeout or after first contact
 exports.seed = doSeed;
 
-// listen({id:'asdf'}, function(telex){}) - give an id to listen to on the dHT, callback fires whenever incoming telexes arrive to it, should seed() first for best karma!
+// before using listen and connect, should seed() first for best karma!
+// listen({id:'asdf'}, function(switch, telex){}) - give an id to listen to on the dHT, callback fires whenever incoming telexes arrive to it.
+// essentially this gives us a way to announce ourselves on the DHT by a sha1 hash of given id. 
+// think of the id like a dns hostname,url,email address,mobile number.
 exports.listen = doListen;
 
-// connect({id:'asdf', ...}, function(telex){}) - id to connect to, other data is sent along
+// connect({id:'asdf', message:'abcd..'}, function(switch, telex){}) - id to connect to, and optional message to send, callback function on response.
+// a example of a response telex could include the ip:port of the remote switch. (analogous to doing a DNS lookup on the internet)
 exports.connect = doConnect;
 
-// send('ip:port', {...}) - sends the given telex to the target ip:port, will attempt to find it and punch through any NATs, etc, but is lossy, no guarantees/confirmations
+// send('ip:port', {...}) - sends the given telex to the target ip:port
+// will attempt to find it and punch through any NATs, etc, but is lossy, no guarantees/confirmations
+// its best to use this function rather than the Switch.prototype.send() directly to handle +pop ing firewalls.
 exports.send = doSend;
 
 // as expected
@@ -24,8 +31,8 @@ exports.shutdown = doShutdown;
 
 // internals
 var self;
-var listeners = [];
-var connectors = {};
+var listeners = [];     //maintain an array of .tap rules we are interested in
+var connectors = {};    //maintains a hashtable of ends we are interested in contacting indexed by and id number. used in +connect signals
 
 /*
    STATE.offline: initial state
@@ -67,6 +74,7 @@ function getSelf(arg) {
 
     // start timer to monitor all switches and drop any over thresholds and not in buckets
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
+    // start timer to send out .tap and discover switches closer to the ends we want to .tap
     self.connect_listen_Interval = setInterval(connect_listen, 10000);
 
     return self;
@@ -156,14 +164,14 @@ function incomingDgram(msg, rinfo) {
         var telex = JSON.parse(msg.toString());
 
     } catch (E) {
-        //out of band data non JSON.
+        //out of band data non JSON. (used by the channels module)
         if (self.handleOOB) self.handleOOB(msg, rinfo);
         return;
     }
 
 
     if (telex['_OOB']) {
-        //JSON formatted out of band data
+        //JSON formatted out of band data (used by the channels module)
         delete telex['_OOB'];
         if (self.handleOOB) self.handleOOB(msg, rinfo);
         return;
@@ -203,7 +211,7 @@ function handleSeedTelex(telex, from, len) {
         self.me.self = true; // flag switch to not send to itself
         clearTimeout(self.seedTimeout);
         delete self.seedTimeout;
-
+        console.log("our identity:",self.me.ipp," hash=",self.me.end);
         //delay...to allow time for SNAT detection (we need a response from another seed)
         setTimeout(function () {
             console.log("GOING ONLINE");
@@ -231,8 +239,6 @@ function handleSeedTelex(telex, from, len) {
     //mark seed as visible
     slib.getSwitch(from).visible = true;
     handleTelex(telex, from, len); //handle the .see from the seed - establish line
-    //delete slib.getSwitch(from).misses;//since we are not processing the telex fully dont count misses
-    //delete slib.getSwitch(from).ATexpected;
 }
 
 function handleTelex(telex, from, len) {
@@ -272,7 +278,7 @@ function handleTelex(telex, from, len) {
 // process a validated telex that has data
 function doData(from, telex) {
 
-    //this would be a data telex reponse to our outgoing +connect direct from the switch listening to the +end we are connecting to
+    //this would be a data telex reponse to our outgoing +connect direct from the switch listening for the +end we are connecting to
     for (var id in connectors) {
         if (id == telex['connect']) {
             connectors[id].callback(from, telex);
@@ -283,13 +289,14 @@ function doData(from, telex) {
 }
 // process a validated telex that has data, commands, etc to be handled
 function doSignals(from, telex) {
+
     if (telex['+connect']) {
-        //handle incoming +connections
+        //handle incoming connections
         listeners.forEach(function (listener) {
             if (listener.end == telex['+end']) {
-                console.log("Found matching LISTENER");
+                console.error("Found matching LISTENER");
                 if (listener.cb) {
-                    console.log("CALLBACK() for listener.");
+                    console.error("CALLBACK() for listener.");
                     listener.cb(from, telex);
                 }
             }
@@ -316,17 +323,18 @@ function sendPOPRequest(ipp) {
                 '+end': hash.toString(),
                 '+pop': 'th:' + self.me.ipp
             });
-            console.log("Sending +pop request to:", ipp, " via:", s);
+            console.error("Sending +pop request to:", ipp, " via:", s);
         }
     });
 }
 
 function doNews(s) {
     //new .seen switch
-    s.visible = true;
-    doSend(s.ipp, {
-        '+end': self.me.end
-    });
+    if(self && self.me){
+        doSend(s.ipp, {
+            '+end': self.me.end
+        });
+    }
     // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
 
@@ -353,6 +361,7 @@ function doPopTap() {
 function doFarListen(arg, callback) {
     //this is a hack for when we are behind a symmetric NAT we will .tap for our +end near 
     //the switches we are trying to +connect to. so they can reply back to us through a telex relay
+    //this will be used called by doConnect()
     var end = new hlib.Hash(arg.id); //end we are tapping for
     var hash = new hlib.Hash(arg.connect); //where we will .tap
     var rule = {
@@ -373,6 +382,8 @@ function doFarListen(arg, callback) {
     return listener;
 }
 
+// setup a listener for the hash of arg.id
+// we want to receive telexe which have a +connect signal in them.
 function doListen(arg, callback) {
     if (!self.me) return;
 
@@ -392,7 +403,7 @@ function doListen(arg, callback) {
         cb: callback
     };
     listeners.push(listener);
-    console.error("ADDED LISTENER");
+    console.log("ADDED LISTENER");
     return listener;
 }
 
@@ -412,9 +423,11 @@ function listenLoop() {
     sendTapRequests();
 }
 
+
 function sendTapRequests() {
 
     var tapRequests = {}; //hash of .tap arrays indexed by switch.ipp 
+    //loop through all listeners and agregate the .tap rules for each switch
     listeners.forEach(function (listener) {
         var switches = slib.getNear(listener.hash);
         switches.forEach(function (s) {
@@ -425,8 +438,8 @@ function sendTapRequests() {
     });
     Object.keys(tapRequests).forEach(function (ipp) {
         var s = slib.getSwitch(ipp);
-        if (!s.line) return;
-        //dont send .tap too often.. need to allow time to get closer to the end we are interested in
+        if (!s.line) return; //only send out the .tap request of we have a line open
+        //don't send .tap too often.. need to allow time to get closer to the end we are interested in
         if (s.lastTapRequest && (s.lastTapRequest + 40000 > Date.now())) return;
         doSend(ipp, {
             '.tap': tapRequests[ipp]
@@ -435,7 +448,7 @@ function sendTapRequests() {
     });
 }
 
-
+//setup a connector to indicate what ends we want to send +connect signals to
 function doConnect(arg, callback) {
     if (!self.me) return;
 
@@ -465,7 +478,7 @@ function connectLoop() {
     // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
     for (var id in connectors) {
         var switches = slib.getNear(connectors[id].end);
-        console.error("CONNECTOR:" + connectors[id].id);
+        console.log("CONNECTOR:",connectors[id].id," message:",connectors[id].arg.message);
         switches.forEach(function (ipp) {
             var telex = {
                 '+end': connectors[id].end.toString(),
@@ -480,8 +493,8 @@ function connectLoop() {
 }
 
 function doSend(to, telex) {
-    //dont send to ip if it matches our's unless it is a local interface
-    //if a NAT/firewall supports 'hair-pinning' we can allow this..
+    //if behind NAT, don't send to a switch with the same ip as us
+    //if a NAT/firewall supports 'hair-pinning' we could allow it
     if (behindNAT()) {
         if (self.me && util.isSameIP(self.me.ipp, to)) return;
     }
@@ -489,7 +502,8 @@ function doSend(to, telex) {
     var s = slib.getSwitch(to);
 
     //eliminate duplicate +end/ping signals going to same switch in short-span of time.
-    if (telex['+end']) {
+    //but allow our +connect signals through unhindered
+    if (telex['+end'] && !telex['+connect']) {
         var end = telex['+end'];
         if (!s.pings) s.pings = {}; //track last ping time, indexed by +end hash
         if (s.pings[end] && ((s.pings[end] + 25000) > Date.now())) return;
@@ -502,9 +516,10 @@ function doSend(to, telex) {
         //we need to +pop it, first time connecting..		
         sendPOPRequest(to);
         s.popped = true;
-        setTimeout(function () {
+        //give the +pop signal a head start before we send out the telex
+        setTimeout(function () { 
             s.send(telex);
-        }, 2000);
+        }, 2000);//too long?
     }
 }
 
@@ -528,7 +543,7 @@ function doShutdown() {
 function connect_listen() {
     if (self.state) {
         if (self.state != STATE.online) return;
-        console.log("Connect/Listen Loop");
+        console.error("Connect/Listen Loop");
         listenLoop();
         connectLoop();
     }
@@ -557,18 +572,12 @@ function scan() {
 
     // if only us or nobody around, and we were seeded at one point, try again!
     // unless we are the seed..
-    /*
-    if(all.length <= 1 && self.seeding && !self.seedTimeout && !self.seed )
+    
+    if(all.length <= 1 && !self.seed )
     {	
-        //delete self.seeding;
-        if(self.me) self.me.purge(); // this will be stale if offline
-        delete self.me;
-	listeners = [];
-	connectors= {};
-	clearInterval(self.connect_listen_Interval);	
-        return doSeed(self.seeding);
+        return doSeed(self.onSeeded);//TODO: emit event state changed..
     }
-*/
+
     //ping all...
     all.forEach(function (s) {
         doSend(s.ipp, {
