@@ -144,6 +144,7 @@ function worker(telex, callback) {
 function doEnd(s, end) {
     s.popped = true; //switch was able to contact us directly so it's 'popped'
     var near = getNear(end);
+    //TODO: If none are closer or if the nearer Switches are dampened (congestion control), .see back only ourselves.
     var healthyNear = [];
     near.forEach(function (ipp) {
         var ss = getSwitch(ipp);
@@ -203,15 +204,15 @@ function doSignals(s, telex) {
             return;
         }
     }
-    // find any network.*.rules and match, relay the signals and DATA
+    // find any network.*.rules and match, relay the signals
     var switches = getSwitches();
 
     switches.forEach(function (aswitch) {
         if (!aswitch.rules) return;
         for (var i in aswitch.rules) {
             if (telexMatchesRule(telex, aswitch.rules[i])) {
-                aswitch.relay(telex);
-                return; //relay telex only once to the switch
+                aswitch.forward(telex);
+                return; //forward telex only once to the switch
             }
         }
     });
@@ -222,11 +223,15 @@ function telexMatchesRule(telex, rule) {
     if (!rule['is'] && !rule['has']) return false; //not a valid rule to match
     if (rule['is']) {
         var is = rule['is'];
-        if (telex['+end'] != is['+end']) return false;
+        //match exact signal and value
+        for(var key in is){
+            if (telex[key] != is[key]) return false;
+        }        
     }
 
     if (rule['has']) {
         var miss = false;
+        //look only for existance of signal
         rule['has'].forEach(function (h) {
             if (!telex[h]) miss = true;
         });
@@ -236,8 +241,31 @@ function telexMatchesRule(telex, rule) {
     return true;
 }
 
-//relay an incoming telex, strip out headers keeping signals and raw data
-Switch.prototype.relay = function (telex, arg) {
+//forward an incoming telex, strip out headers keeping signals
+Switch.prototype.forward = function (telex, arg) {
+    var newTelex = {};
+
+    Object.keys(telex).forEach(function (key) {
+        //copy signals to new telex
+        if (key[0] == '+'){
+            newTelex[key] = telex[key];
+            return;
+        }
+        //increment _hop by 1
+        if (key == '_hop') {
+            newTelex['_hop'] = telex['_hop'] + 1;
+            return;
+        }
+    });
+    
+    if (!newTelex['_hop']) newTelex['_hop'] = 1;//receiving switch will not process +end signal as a dial 
+    console.error("Forwarding Signals:" + JSON.stringify(newTelex) + " TO:" + this.ipp);
+    this.send(newTelex);
+}
+
+/* below implementation forwards DATA - wrong according to telehash spec.
+//forward an incoming telex, strip out headers keeping signals and raw data
+Switch.prototype.forward = function (telex, arg) {
     var newTelex = {};
 
     Object.keys(telex).forEach(function (key) {
@@ -257,6 +285,7 @@ Switch.prototype.relay = function (telex, arg) {
     console.error("Relaying:" + JSON.stringify(newTelex) + " TO:" + this.ipp);
     this.send(newTelex);
 }
+*/
 // send telex to switch, arg.ephemeral === true means don't have to send _ring
 Switch.prototype.send = function (telex, arg) {
     if (this.self) return; // flag to not send to ourselves!
@@ -265,7 +294,8 @@ Switch.prototype.send = function (telex, arg) {
     if (this.ATexpected < Date.now()) this.misses = this.misses + 1 || 1;
     delete this.ATexpected;
     // if we expect a reponse, in 10sec we should count it as a miss if nothing
-    if (telex['+end']) this.ATexpected = Date.now() + 10000;
+    // if we are forwarding and +end signal (_hop > 0) dont expect a .see response.
+    if (telex['+end'] && (!telex._hop||telex._hop==0) ) this.ATexpected = Date.now() + 10000;
     //if(telex['.tap']) this.ATexpected = Date.now() + 10000; //check: do we excpect a response to a .tap?
     // check bytes sent vs received and drop if too much so we don't flood
     if (!this.Bsent) this.Bsent = 0;
@@ -310,6 +340,7 @@ Switch.prototype.healthy = function () {
     return true; // <3 everyone else
 }
 
+/*
 // destroy/drop
 Switch.prototype.drop = function () {
     if (this.healthy()) this.send({
@@ -328,9 +359,14 @@ Switch.prototype.drop = function () {
     }
     //TODO if meshed, remove all back references
 }
+*/
+
 Switch.prototype.purge = function () {
     //PURGE!:  delete main reference to self, should auto-GC if no others
     console.error('purging.. ' + this.ipp);
+    if (this.healthy()) this.send({
+        _br: -10000
+    });
     delete network[this.ipp];
 }
 

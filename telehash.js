@@ -90,7 +90,7 @@ function behindSNAT() {
 
 function resetIdentity() {
     if (self.me) {
-        self.me.purge();
+        self.me.drop();
     }
     delete self.me;
     listeners = [];
@@ -132,7 +132,7 @@ function doSeed(callback) {
 
 function purgeSeeds() {
     self.seeds.forEach(function (ipp) {
-        slib.getSwitch(ipp).purge();
+        slib.getSwitch(ipp).drop();
     });
 }
 
@@ -243,13 +243,7 @@ function handleSeedTelex(telex, from, len) {
 
 function handleTelex(telex, from, len) {
     if (self.me && from == self.me.ipp) return; //dont process packets that claim to be from us! (we could be our own seed)
-    /* dont introduce any new commands or headers ontop of the telehash spec. (keep it simple)!
-    if( telex['.pop'] ) {
-	    //TODO:someone just popped their firewall.. if we tried to contact them we might have to _ring them again
-	    return;
-    }
-*/
-    //must have a _to header in telex
+
     if (telex._to) {
         if (self.snat) {
             //_to will not match self.me.ipp because we are behind SNAT but at least ip should match
@@ -260,16 +254,19 @@ function handleTelex(telex, from, len) {
         }
 
     } else {
-        //bad telex!
-        return;
-    }
 
-    //incoming telexes should have a _line or _ring header
-    //if a line exists we should already know them..
+        return; //bad telex? - review the spec ....
+    }
+    
+/*  //depending on the level of implementation (operation mode) of remote switch it is acceptable
+    //not to have a _ring,_line,_to header..  
+    //must have a _to header in telex
+*/    
+    //if there is a _line in the telex we should already know them..
     if (telex._line) {
         if (!slib.knownSwitch(from)) return;
     } else {
-        if (!telex._ring) return; //not even a ring.. bad telex
+        //if (!telex._ring) return;
     }
 
     slib.getSwitch(from).process(telex, len);
@@ -535,7 +532,7 @@ function doShutdown() {
     }
     // drop all switches
     slib.getSwitches().forEach(function (s) {
-        s.purge()
+        s.drop()
     });
     self.server.close();
     self = undefined;
@@ -560,7 +557,7 @@ function scan() {
 
     // first just cull any not healthy, easy enough
     all.forEach(function (s) {
-        if (!s.healthy()) s.purge();
+        if (!s.healthy()) s.drop();
     });
 
     all = slib.getSwitches();
