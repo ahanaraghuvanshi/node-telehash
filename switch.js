@@ -361,7 +361,7 @@ Switch.prototype.drop = function () {
 }
 */
 
-Switch.prototype.purge = function () {
+Switch.prototype.drop = function () {
     //PURGE!:  delete main reference to self, should auto-GC if no others
     console.error('purging.. ' + this.ipp);
     if (this.healthy()) this.send({
