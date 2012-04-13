@@ -35,9 +35,9 @@ var listeners = [];     //maintain an array of .tap rules we are interested in
 var connectors = {};    //maintains a hashtable of ends we are interested in contacting indexed by a connection 'cid' number. used in +connect signals
 
 /*
-   STATE.offline: initial state
-   STATE.seeding: only handle packets from seeds to determine our ip:port and NAT type
-   STATE.online: full packet processing
+   STATE.OFFLINE: initial state
+   STATE.SEEDING: only handle packets from seeds to determine our ip:port and NAT type
+   STATE.ONLINE full packet processing
    TODO:add callbacks to inform user of the module when switching between states..
 */
 var STATE = {
@@ -46,6 +46,18 @@ var STATE = {
     online: 2
 };
 
+/* TODO: implement different modes of operation of a switch: (for now the swith is full featured)
+    Announcer:  Only dials and sends signals, doesn't process any commands other than .see and
+                doesn't send any _ring, possibly short-lived.
+    Listener:   Stays running, also supports returning basic _ring/_line/_br so that it can
+                send .tap commands in order to receive new signals, but processes no other commands.
+    Full:       Supports all commands and relaying to any active .tap (must not be behind SNAT)
+*/
+var MODE = {
+    FULL:1,
+    LISTENER: 2,
+    ANNOUNCER:3
+};
 
 // init self, use this whenever it may not be init'd yet to be safe
 function getSelf(arg) {
@@ -100,10 +112,8 @@ function resetIdentity() {
 }
 
 function doSeed(callback) {
-
-    if (!self) {
-        getSelf();
-    }
+    //make sure we are initialised
+    getSelf();
 
     //we can only seed into DHT when we are offline.
     if (self.state != STATE.offline) {
@@ -445,7 +455,6 @@ function sendTapRequests( noRateLimit ) {
 }
 
 //setup a connector to indicate what ends we want to send +connect signals to
-
 function doConnect(arg, callback) {
     if (!self.me) return;
 
