@@ -32,7 +32,7 @@ exports.shutdown = doShutdown;
 // internals
 var self;
 var listeners = [];     //maintain an array of .tap rules we are interested in
-var connectors = {};    //maintains a hashtable of ends we are interested in contacting indexed by and id number. used in +connect signals
+var connectors = {};    //maintains a hashtable of ends we are interested in contacting indexed by a connection 'cid' number. used in +connect signals
 
 /*
    STATE.offline: initial state
@@ -300,7 +300,7 @@ function doSignals(from, telex) {
 
         //this would be a relayed telex reponse to our outgoing +connect
         for (var cid in connectors) {
-            if (cid == telex['+connect']) {
+            if (cid == telex['+connect'] && telex['+end']==self.me.end) {
                 connectors[cid].callback(from, telex);
                 //delete connectors[cid];
                 return;
