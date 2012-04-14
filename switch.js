@@ -86,7 +86,6 @@ function Switch(ipp, arg) {
 }
 exports.Switch = Switch;
 
-
 // process incoming telex from this switch
 Switch.prototype.process = function (telex, rawlen) {
     // do all the integrity and line validation stuff
@@ -117,27 +116,32 @@ Switch.prototype.process = function (telex, rawlen) {
 
 function worker(telex, callback) {
     var s = telex._;
-    delete telex._; // get owning switch, repair
+    delete telex._; // get owning switch, repair    
+    
     if (telex['_line'] == s.line) { //assuming telex is validated there should be a _line open
         if (Array.isArray(telex['.see'])) doSee(s, telex['.see']);
         if (Array.isArray(telex['.tap'])) doTap(s, telex['.tap']);
     }
 
-    if (telex['+end'] && (!telex._hop || parseInt(telex._hop) == 0)) doEnd(s, new hlib.Hash(null, telex['+end']));
+    if (telex['+end'] && (!telex._hop || parseInt(telex._hop) == 0)) {
+        doEnd(s, new hlib.Hash(null, telex['+end']));
+        callback();
+        return;
+    }
 
     // if there's any signals, check for matching taps to relay to
     if (Object.keys(telex).some(function (x) {
         return x[0] == '+'
-    }) && !(parseInt(telex['_hop']) >= 4)) {
-        doSignals(s, telex);
-        master.signals(s, telex);
+        }) && !(parseInt(telex['_hop']) >= 4)) {
+            doSignals(s, telex);
+    } else {//else added to prevent passing telex to both master.data and master.signals if a telex contains both
+            //signals and data which we are tapping for
+            
+        // if there's any raw data, send to master
+        if (Object.keys(telex).some(function (x) {
+            return (x[0] != '+' && x[0] != '.' && x[0] != '_')
+        })) master.data(s, telex);
     }
-
-    // if there's any raw data, send to master
-    if (Object.keys(telex).some(function (x) {
-        return (x[0] != '+' && x[0] != '.' && x[0] != '_')
-    })) master.data(s, telex);
-
     callback();
 }
 
@@ -190,25 +194,29 @@ function doTap(s, tap) {
 }
 
 function doSignals(s, telex) {
+    
     //only if we are not behind a symmetric NAT, parse the th:ipp and send them an empty telex to pop!
     //we dont need to pop if we are not behind a NAT..
-    if (master.nat() && !master.snat()) {
-        var me = getSelf();
-        if (me && me.end == telex['+end'] && telex['+pop']) {
-            var empty_telex = new Buffer(JSON.stringify({}) + '\n', "utf8");
-            var ipp = telex['+pop'].substr(3); //stip off the 'th:'
-            var ip = util.IP(ipp);
-            var port = util.PORT(ipp);
-            master.sock.send(empty_telex, 0, empty_telex.length, port, ip);
-            console.error("popping firewall to:" + ip + ":" + port);
-            return;
+    if(telex['+pop']){
+        if (master.nat() && !master.snat()) {
+            var me = getSelf();
+            if (me && me.end == telex['+end']) {
+                var empty_telex = new Buffer(JSON.stringify({}) + '\n', "utf8");
+                var ipp = telex['+pop'].substr(3); //stip off the 'th:'
+                var ip = util.IP(ipp);
+                var port = util.PORT(ipp);
+                master.sock.send(empty_telex, 0, empty_telex.length, port, ip);
+                console.error("popping firewall to:" + ip + ":" + port);
+                return;
+            }
         }
     }
     // find any network.*.rules and match, relay the signals
     var switches = getSwitches();
 
     switches.forEach(function (aswitch) {
-        if (!aswitch.rules) return;
+        if(!aswitch.rules) return;//ignore switches which dont have an active .tap
+        if(aswitch.self) return;//our taps are handeled by master.signal()
         for (var i in aswitch.rules) {
             if (telexMatchesRule(telex, aswitch.rules[i])) {
                 aswitch.forward(telex);
@@ -216,6 +224,10 @@ function doSignals(s, telex) {
             }
         }
     });
+    
+    if(telex['+pop']) return;//user is not interested in +pop signals
+    console.error("MASTER.SIGNALS");
+    master.signals(s, telex);//pass it to user application
 }
 
 function telexMatchesRule(telex, rule) {
@@ -240,6 +252,7 @@ function telexMatchesRule(telex, rule) {
     //if we made it here telex matched rule!
     return true;
 }
+exports.ruleMatch = telexMatchesRule;
 
 //forward an incoming telex, strip out headers keeping signals
 Switch.prototype.forward = function (telex, arg) {

@@ -288,20 +288,31 @@ function handleTelex(telex, from, len) {
     slib.getSwitch(from).process(telex, len);
 }
 
-// process a validated telex that has data
+// process a validated telex that has data, and commands ONLY
+// this would be a data telex aimed directly at our switch
 function doData(from, telex) {
-
-    //this would be a data telex reponse to our outgoing +connect direct from the switch listening for the +end we are connecting to
-    for (var cid in connectors) {
-        if (cid == telex['connect']) {
-            connectors[cid].callback(from, telex);
-            //delete connectors[cid];
-            return;
-        }
-    }
+    //ignore .tap and .see (already handeled)
+    if(telex['.tap'] || telex['.see']) return;   
+    if(handleConnectTelexes(from,telex)) return;//intercept +connect responses
+    
+    console.log("DATA TELEX:", JSON.stringify(telex));
+    //TODO: callback or emit event DATA_TELEX..
+    
 }
-// process a validated telex that has data, commands, etc to be handled
+// process a validated telex that has signals,data and commands to be handled
+// these would be signals we have .tap'ed for
 function doSignals(from, telex) {
+
+    if( handleConnectTelexes(from,telex)) return;//intercept +connect signals
+    
+    listeners.forEach(function (listener) {
+
+        slib.ruleMatch(telex, listener.rule) ? listener.cb(from,telex) : null;
+
+    });       
+        
+}
+function handleConnectTelexes(from,telex){
 
     if (telex['+connect']) {
         //handle incoming connections
@@ -309,7 +320,7 @@ function doSignals(from, telex) {
             if (listener.end == telex['+end']) {
                 if (listener.cb) {
                     listener.cb(from, telex);
-                    return;
+                    return;         
                 }
             }
         });
@@ -318,12 +329,22 @@ function doSignals(from, telex) {
         for (var cid in connectors) {
             if (cid == telex['+connect'] && telex['+end']==self.me.end) {
                 connectors[cid].callback(from, telex);
-                //delete connectors[cid];
-                return;
+                return true;
             }
         }
-
+        
+        return true;
+    }else{
+        //this would be a data telex reponse to our outgoing +connect direct from the switch listening for the +end we are connecting to
+        for (var cid in connectors) {
+            if (cid == telex['connect']) {
+                connectors[cid].callback(from, telex);
+                return true;
+            }
+        }
     }
+    
+    return false;
 }
 
 function sendPOPRequest(ipp) {
@@ -421,7 +442,7 @@ function listenLoop() {
     //look for closer switches
     listeners.forEach(function (listener) {
         count++;
-        console.log(count + ":LISTENER:" + JSON.stringify(listener.rule));
+        console.error(count + ":LISTENER:" + JSON.stringify(listener.rule));
         
         slib.getNear(listener.hash).forEach(function (ipp) {
             doSend(ipp, {
@@ -492,7 +513,7 @@ function connectLoop() {
     if (self && self.state != STATE.online) return;
     // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
     for (var cid in connectors) {
-        console.log("CONNECTOR:",connectors[cid].id," message:",connectors[cid].message);        
+        console.error("CONNECTOR:",connectors[cid].id," message:",connectors[cid].message);        
         doDial(connectors[cid].id);
         doAnnounce(connectors[cid].id, {'+connect':cid,'+from':self.me.ipp,'+message':connectors[cid].message});
     }
@@ -602,7 +623,7 @@ function scan() {
     if (!this.count) this.count = 1;
 
     var all = slib.getSwitches();
-    console.log("--scan loop: " + this.count++);
+    console.error("--scan loop: " + this.count++);
 
     // first just cull any not healthy, easy enough
     all.forEach(function (s) {
@@ -613,7 +634,7 @@ function scan() {
 
     all.forEach(function (s) {
         if (s.self) return;
-        console.log("switch:" + s.ipp + " popped=" + s.popped + " line=" + s.line + " BR=" + s.BR + " BSent=" + s.Bsent + " misses=" + s.misses + " healthy=" + s.healthy());
+        console.error("switch:" + s.ipp + " popped=" + s.popped + " line=" + s.line + " BR=" + s.BR + " BSent=" + s.Bsent + " misses=" + s.misses + " healthy=" + s.healthy());
     });
 
     // if only us or nobody around, and we were seeded at one point, try again!

@@ -3,8 +3,8 @@ var hlib = require("./hash");
 var util = require("./util");
 
 exports.init = init;
-exports.connect = doClient;
-exports.listen = doServer;
+exports.connect = doConnector;
+exports.listen = doListener;
 
 var peers = {};
 var self;
@@ -30,7 +30,7 @@ function init(arg) {
 //using the telehash.connect() function find switches on the network listening for 'name'
 //and establish a line to them. the connection setup is handeled by handleResponse which will
 //callback onConnect with a new peer handler object
-function doClient(name, onConnect) {
+function doConnector(name, onConnect) {
     console.log("Connecting...to: ", name);
     telehash.connect({
         id: name
@@ -43,7 +43,7 @@ function doClient(name, onConnect) {
 //using the telehash.listen() function accept connections from switches on the network looking for 'name'
 //establishing a line to them. The connectio setup is handled by handleConnect which will callback onConnect 
 //with a new peer handler object
-function doServer(name, onConnect) {
+function doListener(name, onConnect) {
     console.log("Listening...for:", name);
     telehash.listen({
         id: name
@@ -116,7 +116,8 @@ function handleConnect(s, telex, callback) {
             '+end': end,
             '+message': "CONNECT_FAILED",
             '+connect': id,
-            '+from': self.me.ipp
+            '+from': self.me.ipp,
+            '_hop':1
         }); //signals to be relayed back
     } else {
         telehash.send(from, {

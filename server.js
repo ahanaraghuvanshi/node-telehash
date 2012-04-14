@@ -23,7 +23,8 @@ function server(name) {
             s.send({
                 '+end': end,
                 '+message': telex['+message'],
-                '+connect': telex['+connect']
+                '+connect': telex['+connect'],
+                '_hop':1                
             }); //signals to be relayed back
         } else {
             telehash.send(telex['+from'], {
