@@ -21,14 +21,14 @@ channels.init({
 */
 function connect() {
    
-    channels.listen("@alice", function(peer){onConnect(peer,"@alice");});//name others will connect to us by
-    channels.connect("@bob", function(peer){onConnect(peer,"@bob");});//friend we want to connect to
+    channels.listen("@bob", function(peer){onConnect(peer,"@bob");});//name others will connect to us by
+    channels.connect("@alice", function(peer){onConnect(peer,"@alice");});//friend we want to connect to
     channels.connect("@eve", function(peer){onConnect(peer,"@eve");});//friend we want to connect to
 }
 
 function onConnect(peer, User ) {
 
-    if(User == "@alice") {
+    if(User == "@bob") {
         console.log("Incoming Connection.");//callback from channels.listen
     }else{
         console.log("Connected to:", User);//callback from channels.connect
@@ -40,7 +40,7 @@ function onConnect(peer, User ) {
     //potential number of spam/malicious callbacks..
     
     setInterval(function(){
-        peer.send( new Buffer("Hi, I'm ALICE!"));
+        peer.send( new Buffer("Hi, I'm BOB!"));
     },3000);
     
     peer.data = function (msg) {
