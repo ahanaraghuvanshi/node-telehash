@@ -103,7 +103,7 @@ function onOOBData(msg, rinfo) {
 }
 
 function handleConnect(s, telex, callback) {
-    console.log("Got A +CONNECT request from: " + telex['+from'] + "+connect=" + telex['+connect'] + " via:" + s.ipp);
+    console.error("Got A +CONNECT request from: " + telex['+from'] + "+connect=" + telex['+connect'] + " via:" + s.ipp);
 
     var end = new hlib.Hash(telex['+from']).toString();
     var from = telex['+from'];
@@ -133,11 +133,11 @@ function handleConnect(s, telex, callback) {
 
 function handleResponse(s, telex, callback) {
     if (telex['+message'] == "CONNECT_FAILED") {
-        console.log("CONNECT FAILED");
+        console.error("CONNECT FAILED");
         return;
     }
 
-    console.log("GOT OK from: " + telex['from'] + "connect=" + telex['connect']);
+    console.error("GOT OK from: " + telex['from'] + "connect=" + telex['connect']);
 
     var from = telex['from'];
     var id = telex['connect'];

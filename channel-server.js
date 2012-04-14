@@ -15,7 +15,7 @@ function server() {
 function onConnect(peer) {
 
     //when a remote switch connects to us we can communicate back to them through the peer object
-    console.log("NEW CLIENT: " + peer.ipp);
+    console.log("CLIENT CONNECTED: " + peer.ipp);
     peer.data = function (msg) {
 	//we receive data through a callback to the the data function
 	//and we can send a reply back using the send function. msg is of type Buffer()

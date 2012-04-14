@@ -18,7 +18,7 @@ function connect() {
 function onConnect(server) {
     //when a connection is made we get back a server object we can use to communicate with the
     //remote switch
-    console.log("CONNECTED");
+    console.log("CONNECTED TO:",server.ipp);
     server.data = function (msg) {
         //this is a triggerred callback for when we receive a datagram from the remote switch
         console.log("data from server: " + msg.toString());
