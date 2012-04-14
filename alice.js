@@ -1,4 +1,4 @@
-var channels = require('../channels');
+var channels = require('./channels');
 
 channels.init({
     ready: function () { //will be called when we are seeded    	

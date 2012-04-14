@@ -26,6 +26,12 @@ exports.connect = doConnect;
 // its best to use this function rather than the Switch.prototype.send() directly to handle +pop ing firewalls.
 exports.send = doSend;
 
+
+exports.tap = doTap;
+exports.dial = doDial;
+exports.announce = doAnnounce;
+
+
 // as expected
 exports.shutdown = doShutdown;
 
@@ -321,7 +327,10 @@ function doSignals(from, telex) {
 }
 
 function sendPOPRequest(ipp) {
+    slib.getSwitch(ipp).popped = true;
     if (self.snat) return; //pointless
+    /*
+    //dont replace below code to use doSend or doAnnounce --> will cause an infinate loop
     var hash = new hlib.Hash(ipp);
     slib.getNear(hash).forEach(function (s) {
         if (self.me) {
@@ -332,14 +341,15 @@ function sendPOPRequest(ipp) {
             console.error("Sending +pop request to:", ipp, " via:", s);
         }
     });
+    */
+    doAnnounce(ipp,{'+pop': 'th:' + self.me.ipp});
 }
 
 function doNews(s) {
     //new .seen switch
     if(self && self.me){
-        doSend(s.ipp, {
-            '+end': self.me.end
-        });
+        console.error("Pinging New switch: ",s.ipp);
+        doPing(s.ipp);        
     }
     // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
@@ -401,16 +411,8 @@ function doListen(arg, callback) {
         },
         'has': ['+connect']
     };
-    var listener = {
-        id: arg.id,
-        hash: hash,
-        end: hash.toString(),
-        rule: rule,
-        cb: callback
-    };
-    listeners.push(listener);
-    console.log("ADDED LISTENER");
-    return listener;
+    
+    doTap(arg.id, rule, callback);
 }
 
 function listenLoop() {
@@ -420,11 +422,14 @@ function listenLoop() {
     listeners.forEach(function (listener) {
         count++;
         console.log(count + ":LISTENER:" + JSON.stringify(listener.rule));
+        
         slib.getNear(listener.hash).forEach(function (ipp) {
             doSend(ipp, {
                 '+end': listener.end
             });
         });
+        
+        //doDial( listener.id );
     });
     sendTapRequests();
 }
@@ -459,10 +464,11 @@ function doConnect(arg, callback) {
     if (!self.me) return;
 
     //TODO disconnect: by cid
+    var hash = new hlib.Hash(arg.id);
     var cid = Date.now().toString(); //TODO add a sequence # to the end. to ensure unique id if many connects happen in short period of time
     var connector = {
-        end: new hlib.Hash(arg.id),
         id: arg.id,
+        end: hash.toString(),
         cid: cid,
         callback: callback,
         message: arg.message
@@ -486,19 +492,55 @@ function connectLoop() {
     if (self && self.state != STATE.online) return;
     // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
     for (var cid in connectors) {
-        var switches = slib.getNear(connectors[cid].end);
-        console.log("CONNECTOR:",connectors[cid].id," message:",connectors[cid].message);
-        switches.forEach(function (ipp) {
-            var telex = {
-                '+end': connectors[cid].end.toString(),
-                '+connect': cid,
-                '+from': self.me.ipp,
-                '+message': connectors[cid].message
-            };
-            if (self.snat) telex['+snat'] = true;
-            doSend(ipp, telex);
-        });
+        console.log("CONNECTOR:",connectors[cid].id," message:",connectors[cid].message);        
+        doDial(connectors[cid].id);
+        doAnnounce(connectors[cid].id, {'+connect':cid,'+from':self.me.ipp,'+message':connectors[cid].message});
     }
+}
+//some lower level functions
+function doTap(end, rule, callback){
+
+    var hash = new hlib.Hash(end);
+    var listener = {
+        id: end,
+        hash: hash,
+        end: hash.toString(),
+        rule: rule,
+        cb: callback
+    };
+    listeners.push(listener);
+    console.log("ADDED LISTENER");
+    return listener;
+}
+
+
+function doAnnounce(end, signals){
+    if (self.snat) signals['+snat'] = true;
+    signals._hop = 1; 
+    var hash = new hlib.Hash(end);
+    signals['+end']=hash.toString();
+    var switches = slib.getNear(hash);
+    switches.forEach(function (ipp) {
+        doSend(ipp,signals);
+    });
+}
+
+function doDial( end ){
+    var hash = new hlib.Hash(end);
+    var switches = slib.getNear(hash);
+    switches.forEach(function (ipp) {
+        doSend(ipp, {
+            '+end': hash.toString(),
+            '_hop':0
+        });
+    });
+    return hash.toString();
+}
+
+function doPing(to){
+    doSend(to, {
+        "+end": self.me.end
+    });
 }
 
 function doSend(to, telex) {
@@ -510,9 +552,8 @@ function doSend(to, telex) {
 
     var s = slib.getSwitch(to);
 
-    //eliminate duplicate +end/ping signals going to same switch in short-span of time.
-    //but allow our +connect signals through unhindered
-    if (telex['+end']) {
+    //eliminate duplicate +end dial signals going to same switch in short-span of time.
+    if (telex['+end'] && (!telex['_hop'] || telex['_hop']==0)) {
         var end = telex['+end'];
         if (!s.pings) s.pings = {}; //track last ping time, indexed by +end hash
         if (s.pings[end] && ((s.pings[end] + 15000) > Date.now())) return;
@@ -524,7 +565,6 @@ function doSend(to, telex) {
     } else {
         //we need to +pop it, first time connecting..		
         sendPOPRequest(to);
-        s.popped = true;
         //give the +pop signal a head start before we send out the telex
         setTimeout(function () { 
             s.send(telex);
@@ -586,9 +626,7 @@ function scan() {
 
     //ping all...
     all.forEach(function (s) {
-        doSend(s.ipp, {
-            "+end": self.me.end
-        });
+        doPing(s.ipp);        
     });
 
     //if we lost connection to all initial seeds.. ping them all again?
