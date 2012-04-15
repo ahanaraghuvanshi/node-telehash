@@ -52,12 +52,18 @@ var STATE = {
     online: 2
 };
 
-/* TODO: implement different modes of operation of a switch: (for now the swith is full featured)
+/* TODO: implement different modes of operation of a switch: (for now the swith operates as a full featured switch)
     Announcer:  Only dials and sends signals, doesn't process any commands other than .see and
                 doesn't send any _ring, possibly short-lived.
+                
     Listener:   Stays running, also supports returning basic _ring/_line/_br so that it can
                 send .tap commands in order to receive new signals, but processes no other commands.
+                
     Full:       Supports all commands and relaying to any active .tap (must not be behind SNAT)
+                Full Switches need to implement seeding, keeping lines open, a basic bucketing system
+                that tracks active Switches at different distances from themselves. A Full Switch needs
+                to do basic duplicate detection, it should only process a unique set of signals at
+                most once every 10 seconds (hash the sorted string sigs/values).
 */
 var MODE = {
     FULL:1,
@@ -455,7 +461,7 @@ function listenLoop() {
     sendTapRequests();
 }
 
-
+//TODO: from telehash.org/proto.html, under section common patterns:.. then send a .tap of which Signals to observe to those Switches close to the End along with some test Signals, who if willing will respond with process the .tap and immediately send the matching Signals back to confirm that it's active.
 function sendTapRequests( noRateLimit ) {
     var limit = noRateLimit ? false : true;
     var tapRequests = {}; //hash of .tap arrays indexed by switch.ipp 
