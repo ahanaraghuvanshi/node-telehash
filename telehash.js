@@ -638,16 +638,17 @@ function scan() {
     });
 
     // if only us or nobody around, and we were seeded at one point, try again!
-    // unless we are the seed..
-    
+    // unless we are the seed..    
     if(all.length <= 1 && !self.seed )
-    {	
+    {	//We probably lost our internet connection at this point.. or maybe
+        //it just got disrupted:(DSL/pppoE DHCP lease renewed, if on a mobile we changed cells, signal lost etc..
+        self.state = STATE.offline;
         return doSeed(self.onSeeded);//TODO: emit event state changed..
     }
 
     //ping all...
     all.forEach(function (s) {
-        doPing(s.ipp);        
+        doPing(s.ipp);
     });
 
     //if we lost connection to all initial seeds.. ping them all again?
