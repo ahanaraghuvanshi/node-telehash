@@ -4,7 +4,7 @@ var hlib = require('./hash');
 var util = require('./util');
 
 // high level exported functions
-// init({port:42424, seeds:['1.2.3.4:5678], handleOOB:function(data){} })
+// init({port:42424, seeds:['1.2.3.4:5678], handleOOB:function(data){},mode:(1|2|3) })
 // use it to pass in custom settings other than defaults, optional but if used must be called first!
 exports.init = getSelf;
 
@@ -53,6 +53,7 @@ var STATE = {
 };
 
 /* TODO: implement different modes of operation of a switch: (for now the swith operates as a full featured switch)
+
     Announcer:  Only dials and sends signals, doesn't process any commands other than .see and
                 doesn't send any _ring, possibly short-lived.
                 
@@ -66,9 +67,9 @@ var STATE = {
                 most once every 10 seconds (hash the sorted string sigs/values).
 */
 var MODE = {
-    FULL:1,
+    FULL:3,
     LISTENER: 2,
-    ANNOUNCER:3
+    ANNOUNCER:1
 };
 
 // init self, use this whenever it may not be init'd yet to be safe
@@ -76,6 +77,8 @@ function getSelf(arg) {
     if (self) return self;
     self = arg || {};
 
+    if(!self.mode) self.mode = MODE.FULL; //default operating mode
+    
     self.state = STATE.offline; //start in offline state
     if (!self.seeds) self.seeds = ['208.68.164.253:42424', '208.68.163.247:42424'];
 
@@ -87,29 +90,36 @@ function getSelf(arg) {
     self.server.bind(self.port ? parseInt(self.port) : 0, self.ip || '0.0.0.0');
 
     // set up switch master callbacks
-    slib.setCallbacks({
-        data: doSignals,    //same handler for both data and signals.
+    var callbacks = {
+        sock:    self.server,
+        nat:     function(){ return (self.nat==true || self.snat==true) },
+        snat:    function(){ return (self.snat==true) },
+        news:    doNews,
+        data:    doSignals,
         signals: doSignals,
-        sock: self.server,
-        news: doNews,
-        nat: behindNAT,
-        snat: behindSNAT
-    });
+        mode:   function(){ return self.mode }
+        
+    };
+    
+    //disable tapping, master signal handlers and connect/listen functions
+    if(self.mode == MODE.ANNOUNCER){
+        callbacks.data = callbacks.signals = function(){};
+        exports.tap = function(){
+            console.log("Tapping not supported in Announcer Mode.");
+        };
+        exports.connect = exports.listen = function(){
+            console.log("connect/listen feature not supported in Announcer Mode.");
+        };
+    }
+    
+    slib.setCallbacks(callbacks);
 
     // start timer to monitor all switches and drop any over thresholds and not in buckets
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
     // start timer to send out .tap and discover switches closer to the ends we want to .tap
-    self.connect_listen_Interval = setInterval(connect_listen, 5000);
+    self.connect_listen_Interval = setInterval(connect_listen, 10000);
 
     return self;
-}
-
-function behindNAT() {
-    return (self.nat == true || self.snat == true);
-}
-
-function behindSNAT() {
-    return (self.snat == true);
 }
 
 function resetIdentity() {
@@ -237,10 +247,9 @@ function handleSeedTelex(telex, from, len) {
         //delay...to allow time for SNAT detection (we need a response from another seed)
         setTimeout(function () {
             console.log("GOING ONLINE");
-            if (!self.snat) self.me.visible = true; //become visible (announce our-selves in .see commands)
+            if (!self.snat && self.mode == MODE.FULL) self.me.visible = true; //become visible (announce our-selves in .see commands)
             self.state = STATE.online;
-            doPopTap(); //only needed if we are behind NAT
-            //pingSeeds();
+            if(self.nat) doPopTap(); //only needed if we are behind NAT
             if (self.onSeeded) self.onSeeded();
         }, 2000);
     }
@@ -256,6 +265,9 @@ function handleSeedTelex(telex, from, len) {
         self.snat = true;
         self.nat = true;
         self.me.visible = false; //hard to be seen behind an SNAT :(
+        if(self.mode == MODE.FULL){
+            self.mode = MODE.LISTENER;//drop functionality to LISTENER
+        }
     }
 
     //mark seed as visible
@@ -341,19 +353,6 @@ function handleConnectResponses(from,telex){
 function sendPOPRequest(ipp) {
     slib.getSwitch(ipp).popped = true;
     if (self.snat) return; //pointless
-    /*
-    //dont replace below code to use doSend or doAnnounce --> will cause an infinate loop
-    var hash = new hlib.Hash(ipp);
-    slib.getNear(hash).forEach(function (s) {
-        if (self.me) {
-            slib.getSwitch(s).send({
-                '+end': hash.toString(),
-                '+pop': 'th:' + self.me.ipp
-            });
-            console.error("Sending +pop request to:", ipp, " via:", s);
-        }
-    });
-    */
     doAnnounce(ipp,{'+pop': 'th:' + self.me.ipp});
 }
 
@@ -367,6 +366,8 @@ function doNews(s) {
 }
 
 function doPopTap() {
+    if( self.mode == MODE.ANNOUNCER) return;
+    
     if (self.nat && !self.snat) {
         console.error("Tapping +POPs...");
         listeners.push({
@@ -386,6 +387,7 @@ function doPopTap() {
 }
 
 function doFarListen(arg, callback) {
+    if(self.mode == MODE.ANNOUNCER) return;
     //this is a hack for when we are behind a symmetric NAT we will .tap for our +end near 
     //the switches we are trying to +connect to. so they can reply back to us through a telex relay using a +response signal
     //this will be used called by doConnect()
@@ -414,7 +416,7 @@ function doFarListen(arg, callback) {
 // we want to receive telexe which have a +connect signal in them.
 function doListen(arg, callback) {
     if (!self.me) return;
-
+    if (self.mode == MODE.ANNOUNCER ) return;
     //add a listener for arg.id 
     var hash = new hlib.Hash(arg.id);
     var rule = {
@@ -429,6 +431,8 @@ function doListen(arg, callback) {
 
 function listenLoop() {
     if (self && self.state != STATE.online) return;
+    if (self.mode == MODE.ANNOUNCER) return;
+    
     var count = 0;
     //look for closer switches
     listeners.forEach(function (listener) {
@@ -490,10 +494,12 @@ function doConnect(arg, callback) {
     //helper if we are behind symmetric NAT
     //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..
     //if(self.snat) {
-    doFarListen({
-        id: self.me.ipp,
-        connect: arg.id
-    }, undefined);
+    if(self.mode != MODE.ANNOUNCER){
+        doFarListen({
+            id: self.me.ipp,
+            connect: arg.id
+        }, undefined);
+    }
     //}
     console.log("ADDED CONNECTOR");
     connectLoop(); //kick start connector
@@ -511,7 +517,7 @@ function connectLoop() {
 }
 //some lower level functions
 function doTap(end, rule, callback){
-
+    if(self.mode == MODE.ANNOUNCER) return;
     var hash = new hlib.Hash(end);
     var listener = {
         id: end,
@@ -558,7 +564,7 @@ function doPing(to){
 function doSend(to, telex) {
     //if behind NAT, don't send to a switch with the same ip as us
     //if a NAT/firewall supports 'hair-pinning' we could allow it
-    if (behindNAT()) {
+    if (self.nat) {
         if (self.me && util.isSameIP(self.me.ipp, to)) return;
     }
 
@@ -575,7 +581,7 @@ function doSend(to, telex) {
     if (s.popped || self.snat) {
         s.send(telex);
     } else {
-        //we need to +pop it, first time connecting..		
+        //we need to +pop it, first time connecting..
         sendPOPRequest(to);
         //give the +pop signal a head start before we send out the telex
         setTimeout(function () { 

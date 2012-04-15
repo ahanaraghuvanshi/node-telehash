@@ -13,6 +13,7 @@ function init(arg) {
     if (self) return self;
 
     self = telehash.init({
+	mode:2,
         handleOOB: onOOBData,	//capture out-of-band packets coming into the switch
         seeds: arg.seeds
     });

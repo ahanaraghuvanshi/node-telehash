@@ -2,6 +2,12 @@ var async = require('async');
 var hlib = require('./hash');
 var util = require('./util');
 
+//switch operating mode
+var MODE = {
+    FULL:3,
+    LISTENER: 2,
+    ANNOUNCER:1
+};
 
 // global hash of all known switches by ipp or hash
 var network = {};
@@ -117,14 +123,14 @@ Switch.prototype.process = function (telex, rawlen) {
 function worker(telex, callback) {
     var s = telex._;
     delete telex._; // get owning switch, repair    
-    
+        
     if (telex['_line'] == s.line) { //assuming telex is validated there should be a _line open
         if (Array.isArray(telex['.see'])) doSee(s, telex['.see']);
-        if (Array.isArray(telex['.tap'])) doTap(s, telex['.tap']);
+        if (master.mode()==MODE.FULL && Array.isArray(telex['.tap'])) doTap(s, telex['.tap']);
     }
 
     if (telex['+end'] && (!telex._hop || parseInt(telex._hop) == 0)) {
-        doEnd(s, new hlib.Hash(null, telex['+end']));
+        if(master.mode()==MODE.FULL) doEnd(s, new hlib.Hash(null, telex['+end']));
         callback();
         return;
     }
@@ -219,17 +225,18 @@ function doSignals(s, telex) {
     // find any network.*.rules and match, relay the signals
     var switches = getSwitches();
 
-    switches.forEach(function (aswitch) {
-        if(!aswitch.rules) return;//ignore switches which dont have an active .tap
-        if(aswitch.self) return;//our taps are handeled by master.signal()
-        for (var i in aswitch.rules) {
-            if (telexMatchesRule(telex, aswitch.rules[i])) {
-                aswitch.forward(telex); 
-                return; //forward telex only once to the switch
+    if(master.mode()==MODE.FULL){
+        switches.forEach(function (aswitch) {
+            if(!aswitch.rules) return;//ignore switches which dont have an active .tap
+            if(aswitch.self) return;//our taps are handeled by master.signal()
+            for (var i in aswitch.rules) {
+                if (telexMatchesRule(telex, aswitch.rules[i])) {
+                    aswitch.forward(telex); 
+                    return; //forward telex only once to the switch
+                }
             }
-        }
-    });
-       
+        });
+    }
     master.signals(s, telex);//pass it to user application
 }
 
@@ -302,26 +309,30 @@ Switch.prototype.forward = function (telex, arg) {
     this.send(newTelex);
 }
 */
-// send telex to switch, arg.ephemeral === true means don't have to send _ring
-Switch.prototype.send = function (telex, arg) {
+// send telex to switch
+Switch.prototype.send = function (telex) {
+ 
     if (this.self) return; // flag to not send to ourselves!
     if (this.ATdropped) return; //dont send to switches marked to be purged
     // if last time we sent there was an expected response and never got it, count it as a miss for health check
     if (this.ATexpected < Date.now()) this.misses = this.misses + 1 || 1;
     delete this.ATexpected;
     // if we expect a reponse, in 10sec we should count it as a miss if nothing
-    // if we are forwarding and +end signal (_hop > 0) dont expect a .see response.
+    // if we are forwarding an +end signal (_hop > 0) dont expect a .see response.
     if (telex['+end'] && (!telex._hop||telex._hop==0) ) this.ATexpected = Date.now() + 10000;
     //if(telex['.tap']) this.ATexpected = Date.now() + 10000; //check: do we excpect a response to a .tap?
+    
     // check bytes sent vs received and drop if too much so we don't flood
     if (!this.Bsent) this.Bsent = 0;
     if (this.Bsent - this.BRin > 10000) {
         console.error("FLOODING " + this.ipp + ", dropping " + JSON.stringify(telex));
         return;
     }
-
-    if (!this.ring) this.ring = Math.floor((Math.random() * 32768) + 1);
-
+    
+    if(master.mode() != MODE.ANNOUNCER ){
+        if (!this.ring) this.ring = Math.floor((Math.random() * 32768) + 1);
+    }
+    
     //make copy of telex.. and send that .. dont alter telex
     var telexOut = {};
     Object.keys(telex).forEach(function (key) {
@@ -330,9 +341,11 @@ Switch.prototype.send = function (telex, arg) {
     
     telexOut._to = this.ipp;
 
-    // always try to handshake in case we need to talk again
-    this.line ? telexOut._line = this.line : telexOut._ring = this.ring;
-
+    if(master.mode() != MODE.ANNOUNCER){
+        // try to handshake in case we need to talk again
+        this.line ? telexOut._line = this.line : telexOut._ring = this.ring;
+    }
+    
     // send the bytes we've received, if any
     if (this.BR) telexOut._br = this.BRout = this.BR;
 
@@ -397,7 +410,7 @@ function validate(s, t) {
     // first, if it's been more than 10 seconds after a line opened,
     // be super strict, no more ringing allowed, _line absolutely required
     if (s.ATline && s.ATline + 10000 < Date.now() && t._line != s.line) return false;
-
+    
     // second, process incoming _line
     if (t._line) {
         // can't get a _line w/o having sent a _ring
@@ -434,7 +447,8 @@ function validate(s, t) {
 
         // we can set up the line now if needed
         //if(s.ATline == 0){ //will never be true!
-        if (!s.ATline) { //changed this to calculate the _line on first packet received from a switch with _ring
+        
+        if (master.mode() != MODE.ANNOUNCER && !s.ATline) { //changed this to calculate the _line on first packet received from a switch with _ring
             s.ringin = t._ring;
             if (!s.ring) s.ring = Math.floor((Math.random() * 32768) + 1);
             s.line = s.ringin * s.ring;

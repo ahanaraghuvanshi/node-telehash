@@ -1,6 +1,7 @@
 var telehash = require("./telehash");
 var hlib = require("./hash");
 
+telehash.init({mode:2});
 telehash.seed(function (err) {
     if (err) {
         console.log(err);

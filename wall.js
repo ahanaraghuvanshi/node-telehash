@@ -6,6 +6,8 @@ var hlib = require("./hash");
 var stdin = process.openStdin();
 stdin.setEncoding("UTF-8");
 
+telehash.init({mode:2});
+
 telehash.seed(function (err) {
     if (err) {
         console.log(err);
