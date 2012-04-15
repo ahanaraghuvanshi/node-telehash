@@ -157,7 +157,7 @@ function doEnd(s, end) {
         var ss = getSwitch(ipp);
         //TODO: only allow private IPs if we are seeding with a private DHT
         //and only allow public IPs if we are seeding with a public DHT
-        if (ss.healthy() && ss.visible) healthyNear.push(ipp);
+        if (ss.healthy() && ss.visible && ss.line ) healthyNear.push(ipp);
     });
     s.send({
         '.see': healthyNear
@@ -224,14 +224,12 @@ function doSignals(s, telex) {
         if(aswitch.self) return;//our taps are handeled by master.signal()
         for (var i in aswitch.rules) {
             if (telexMatchesRule(telex, aswitch.rules[i])) {
-                aswitch.forward(telex);
+                aswitch.forward(telex); 
                 return; //forward telex only once to the switch
             }
         }
     });
-    
-    if(telex['+pop']) return;//user is not interested in +pop signals
-    console.error("MASTER.SIGNALS");
+       
     master.signals(s, telex);//pass it to user application
 }
 
@@ -324,15 +322,21 @@ Switch.prototype.send = function (telex, arg) {
 
     if (!this.ring) this.ring = Math.floor((Math.random() * 32768) + 1);
 
-    telex._to = this.ipp;
+    //make copy of telex.. and send that .. dont alter telex
+    var telexOut = {};
+    Object.keys(telex).forEach(function (key) {
+        telexOut[key] = telex[key];
+    });
+    
+    telexOut._to = this.ipp;
 
     // always try to handshake in case we need to talk again
-    this.line ? telex._line = this.line : telex._ring = this.ring;
+    this.line ? telexOut._line = this.line : telexOut._ring = this.ring;
 
     // send the bytes we've received, if any
-    if (this.BR) telex._br = this.BRout = this.BR;
+    if (this.BR) telexOut._br = this.BRout = this.BR;
 
-    var msg = new Buffer(JSON.stringify(telex) + '\n', "utf8"); // \n is nice for testing w/ netcat
+    var msg = new Buffer(JSON.stringify(telexOut) + '\n', "utf8"); // \n is nice for testing w/ netcat
     if (msg.length > 1400) console.error("WARNING, large datagram might not survive MTU " + msg.length);
 
     // track bytes we've sent
