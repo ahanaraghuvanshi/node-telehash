@@ -151,9 +151,10 @@ function worker(telex, callback) {
     callback();
 }
 
-/*Notes from proto spec on dampening..
-Dampening is used to reduce congestion around any single Switch or group of them nearby when there is a lot of signals or listeners coming in around one or more Ends. There are two strategies, one when all the traffic is to a single End, and another when it's just to one part of the ring (different but nearby Ends). A Switch should not .see back to anyone the IP:PORT of any other Switch when it's _br is sufficiently out of sync with it (need to test to find an appropriate window here), this dampens general parts of the DHT when traffic might flow beyond any Switches desire or ability to respond to. Secondarily, any Switch should return itself as the endpoint for any End that is the most popular one it is seeing (also need to test to find best time window to check popularity).
-*/
+    /*
+        Notes from proto spec on dampening..
+        Dampening is used to reduce congestion around any single Switch or group of them nearby when there is a lot of signals or listeners coming in around one or more Ends. There are two strategies, one when all the traffic is to a single End, and another when it's just to one part of the ring (different but nearby Ends). A Switch should not .see back to anyone the IP:PORT of any other Switch when it's _br is sufficiently out of sync with it (need to test to find an appropriate window here), this dampens general parts of the DHT when traffic might flow beyond any Switches desire or ability to respond to. Secondarily, any Switch should return itself as the endpoint for any End that is the most popular one it is seeing (also need to test to find best time window to check popularity).
+    */
 function doEnd(s, end) {
     s.popped = true; //switch was able to contact us directly so it's 'popped'
     var near = getNear(end);
@@ -163,6 +164,7 @@ function doEnd(s, end) {
         var ss = getSwitch(ipp);
         //TODO: only allow private IPs if we are seeding with a private DHT
         //and only allow public IPs if we are seeding with a public DHT
+        if( ss.self && ss.visible) return healthyNear.push(ipp);
         if (ss.healthy() && ss.visible && ss.line ) healthyNear.push(ipp);
     });
     s.send({
@@ -228,7 +230,7 @@ function doSignals(s, telex) {
     if(master.mode()==MODE.FULL){
         switches.forEach(function (aswitch) {
             if(!aswitch.rules) return;//ignore switches which dont have an active .tap
-            if(aswitch.self) return;//our taps are handeled by master.signal()
+            if(aswitch.self) return;//our taps are handeled by master.signals()
             for (var i in aswitch.rules) {
                 if (telexMatchesRule(telex, aswitch.rules[i])) {
                     aswitch.forward(telex); 

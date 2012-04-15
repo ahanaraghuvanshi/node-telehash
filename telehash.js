@@ -247,7 +247,10 @@ function handleSeedTelex(telex, from, len) {
         //delay...to allow time for SNAT detection (we need a response from another seed)
         setTimeout(function () {
             console.log("GOING ONLINE");
-            if (!self.snat && self.mode == MODE.FULL) self.me.visible = true; //become visible (announce our-selves in .see commands)
+            if (!self.snat && self.mode == MODE.FULL){
+                 self.me.visible = true; //become visible (announce our-selves in .see commands)
+                 console.log('Making ourself Visible..');
+            }
             self.state = STATE.online;
             if(self.nat) doPopTap(); //only needed if we are behind NAT
             if (self.onSeeded) self.onSeeded();
@@ -292,10 +295,10 @@ function handleTelex(telex, from, len) {
         return; //bad telex? - review the spec ....
     }
     
-/*  //depending on the level of implementation (operation mode) of remote switch it is acceptable
-    //not to have a _ring,_line,_to header..  
-    //must have a _to header in telex
-*/    
+    /*  
+        depending on the level of implementation (operation mode) of remote switch it is acceptable
+        not to have a _ring,_line,_to header..  
+    */    
     //if there is a _line in the telex we should already know them..
     if (telex._line) {
         if (!slib.knownSwitch(from)) return;
@@ -305,19 +308,6 @@ function handleTelex(telex, from, len) {
 
     slib.getSwitch(from).process(telex, len);
 }
-/*
-// process a validated telex that has data, and commands ONLY
-// this would be a data telex aimed directly at our switch
-function doData(from, telex) {
-    //ignore .tap and .see (already handeled)
-    if(telex['.tap'] || telex['.see']) return;   
-    if(handleConnectTelexes(from,telex)) return;//intercept +connect responses
-    
-    console.log("DATA TELEX:", JSON.stringify(telex));
-    //TODO: callback or emit event DATA_TELEX..
-    
-}
-*/
 
 // process a validated telex that has signals,data and commands to be handled
 // these would be signals we have .tap'ed for
@@ -335,6 +325,7 @@ function doSignals(from, telex) {
     });       
         
 }
+
 function handleConnectResponses(from,telex){
 
     if (telex['+response']) {
