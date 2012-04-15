@@ -88,7 +88,7 @@ function getSelf(arg) {
 
     // set up switch master callbacks
     slib.setCallbacks({
-        data: doData,
+        data: doSignals,    //same handler for both data and signals.
         signals: doSignals,
         sock: self.server,
         news: doNews,
@@ -293,7 +293,7 @@ function handleTelex(telex, from, len) {
 
     slib.getSwitch(from).process(telex, len);
 }
-
+/*
 // process a validated telex that has data, and commands ONLY
 // this would be a data telex aimed directly at our switch
 function doData(from, telex) {
@@ -305,51 +305,36 @@ function doData(from, telex) {
     //TODO: callback or emit event DATA_TELEX..
     
 }
+*/
+
 // process a validated telex that has signals,data and commands to be handled
 // these would be signals we have .tap'ed for
 function doSignals(from, telex) {
-
-    if( handleConnectTelexes(from,telex)) return;//intercept +connect signals
+    //ignore .tap and .see (already handeled)
+    if(telex['.tap'] || telex['.see']) return;
     
+    if( handleConnectResponses(from,telex) ) return;//intercept +response signals
+    
+    //look for listener .tapping signals in this telex and callback it's handler
     listeners.forEach(function (listener) {
 
-        slib.ruleMatch(telex, listener.rule) ? listener.cb(from,telex) : null;
+        if( slib.ruleMatch(telex, listener.rule) && listener.cb ) listener.cb(from,telex);
 
     });       
         
 }
-function handleConnectTelexes(from,telex){
+function handleConnectResponses(from,telex){
 
-    if (telex['+connect']) {
-        //handle incoming connections
-        listeners.forEach(function (listener) {
-            if (listener.end == telex['+end']) {
-                if (listener.cb) {
-                    listener.cb(from, telex);
-                    return;         
-                }
-            }
-        });
-
-        //this would be a relayed telex reponse to our outgoing +connect
+    if (telex['+response']) {
+        //this would be a relayed telex +reponse to our outgoing +connect (could be direct or relayed)
         for (var cid in connectors) {
-            if (cid == telex['+connect'] && telex['+end']==self.me.end) {
+            if (cid == telex['+response']) {
                 connectors[cid].callback(from, telex);
                 return true;
             }
         }
-        
-        return true;
-    }else{
-        //this would be a data telex reponse to our outgoing +connect direct from the switch listening for the +end we are connecting to
-        for (var cid in connectors) {
-            if (cid == telex['connect']) {
-                connectors[cid].callback(from, telex);
-                return true;
-            }
-        }
+        return true;    
     }
-    
     return false;
 }
 
@@ -376,7 +361,7 @@ function doNews(s) {
     //new .seen switch
     if(self && self.me){
         console.error("Pinging New switch: ",s.ipp);
-        doPing(s.ipp);        
+        doPing(s.ipp);  
     }
     // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
@@ -402,7 +387,7 @@ function doPopTap() {
 
 function doFarListen(arg, callback) {
     //this is a hack for when we are behind a symmetric NAT we will .tap for our +end near 
-    //the switches we are trying to +connect to. so they can reply back to us through a telex relay
+    //the switches we are trying to +connect to. so they can reply back to us through a telex relay using a +response signal
     //this will be used called by doConnect()
     var end = new hlib.Hash(arg.id); //end we are tapping for
     var hash = new hlib.Hash(arg.connect); //where we will .tap
@@ -410,7 +395,7 @@ function doFarListen(arg, callback) {
         'is': {
             '+end': end.toString()
         },
-        'has': ['+connect']
+        'has': ['+response']
     };
     var listener = {
         id: arg.id,
@@ -548,7 +533,7 @@ function doAnnounce(end, signals){
     signals['+end']=hash.toString();
     var switches = slib.getNear(hash);
     switches.forEach(function (ipp) {
-        doSend(ipp,signals);
+        doSend(ipp,signals);//fix: signals telex is being altered.. need to make a copy of telex before sending to multiple switches
     });
 }
 

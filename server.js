@@ -23,14 +23,14 @@ function server(name) {
             s.send({
                 '+end': end,
                 '+message': telex['+message'],
-                '+connect': telex['+connect'],
-                '_hop':1                
+                '+response': telex['+connect'],
+                '_hop':1
             }); //signals to be relayed back
         } else {
             telehash.send(telex['+from'], {
-                'message': telex['+message'],
-                'connect': telex['+connect']
-            }); //data telex
+                '+message': telex['+message'],
+                '+response': telex['+connect']
+            }); //direct telex
         }
     });
 }

@@ -115,15 +115,15 @@ function handleConnect(s, telex, callback) {
         s.send({
             '+end': end,
             '+message': "CONNECT_FAILED",
-            '+connect': id,
+            '+response': id,
             '+from': self.me.ipp,
             '_hop':1
         }); //signals to be relayed back
     } else {
         telehash.send(from, {
-            'from': self.me.ipp,
-            'connect': id,
-            'message': 'OK'
+            '+from': self.me.ipp,
+            '+response': id,
+            '+message': 'OK'
         }); //data telex informing them of our ip:port
         if (!peers[from]) {
             callback(createNewPeer(id, from));
@@ -137,10 +137,10 @@ function handleResponse(s, telex, callback) {
         return;
     }
 
-    console.error("GOT OK from: " + telex['from'] + "connect=" + telex['connect']);
+    console.error("GOT OK from: " + telex['+from'] + "response=" + telex['+response']);
 
-    var from = telex['from'];
-    var id = telex['connect'];
+    var from = telex['+from'];
+    var id = telex['+response'];
 
     if (!peers[from]) {
         callback(createNewPeer(id, from));
