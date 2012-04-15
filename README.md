@@ -15,7 +15,7 @@ This module presents a simple high-level API for using TeleHash, currently it ha
 
 This will seed you into the DHT and actively wait for any connect requests sent to the provided id (in this example: ECHO-SRV). The telex will be the JSON object sent in the original request, and switch is the sending/relaying switch. It will print out the message data field in the telex. Upon receiving the telex, a reply can be sent with:
 
-    telehash.send( telex.from, {...}); //telex.from is the ip:port of the original sender
+    telehash.send( telex['+from'], {...}); //telex['+from'] is the ip:port of the original sender
 
 
 See server.js for a detailed example.
