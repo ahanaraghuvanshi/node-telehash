@@ -349,10 +349,20 @@ function sendPOPRequest(ipp) {
 
 function doNews(s) {
     //new .seen switch
+    
     if(self && self.me){
-        console.error("Pinging New switch: ",s.ipp);
-        doPing(s.ipp);  
+      console.error("Pinging New switch: ",s.ipp);   
+      if(s.via){
+        s.popped = true;
+        doSend(s.via,{
+            '+pop':'th:'+self.me.ipp,
+            '_hop':1
+        });           
+      }
+      
+      doPing(s.ipp);//will pop if required..              
     }
+    
     // TODO if we're actively listening, and this is closest yet, ask it immediately
 }
 
