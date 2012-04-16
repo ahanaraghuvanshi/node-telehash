@@ -14,11 +14,12 @@ function connect(name) {
 
     var connector = telehash.connect( name );
     
-    connector.send("TeleHash Rocks!", 20, function ( obj ) {
+    connector.send("TeleHash Rocks!", 5, function ( obj ) {
         if( obj ){
-           console.log("Reply #"+ obj.count+" MESSAGE: ", obj.telex['+message'], "from:", obj.s.ipp);
+           console.log("Reply #"+ obj.count+" MESSAGE: ", obj.message, "from:", obj.from);
         }else{        
-           console.log("Reply TIMEOUT!");
+           console.log("Reply TIMEOUT! Retrying..");
+           setTimeout(function(){connect(name);},1000);      
         }
     });   
     

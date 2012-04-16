@@ -16,8 +16,8 @@ function server(name) {
     telehash.listen({
         id: name
     }, function (s, telex) {
-        console.log("Incoming telex:" + JSON.stringify(telex) + " via:" + s.ipp);
-        console.log("MESSAGE:", telex['+message']);
+        //console.log("Incoming telex:" + JSON.stringify(telex) + " via:" + s.ipp);
+        console.log("<<-- MESSAGE:", telex['+message']);
 
         //if remote end is behind SNAT or we are behind the same NAT send back via relay
         if (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)) {
@@ -28,11 +28,13 @@ function server(name) {
                 '+response': telex['+connect'],
                 '_hop':1
             }); //signals to be relayed back
+            console.log("replying...relay");
         } else {
             telehash.send(telex['+from'], {
                 '+message': telex['+message'],
                 '+response': telex['+connect']
             }); //direct telex
+            console.log("replyig...direct");
         }
     });
 }

@@ -342,7 +342,7 @@ function handleConnectResponses(from,telex){
         for (var guid in responseHandlers) {
             if (guid == telex['+response'] && responseHandlers[guid].callback ) {
                 responseHandlers[guid].responses++;
-                responseHandlers[guid].callback({s:from, telex:telex, count:responseHandlers[guid].responses});
+                responseHandlers[guid].callback({from:from.ipp, message:telex['+message'], count:responseHandlers[guid].responses});
                 
                 return true;
             }
@@ -501,7 +501,7 @@ function doConnect(end_name) {
             responseHandlers[guid]={ 
                 callback: callback, //add a handler for the responses
                 timeout: Date.now()+(timeOut*1000),  //responses must arrive within timeOut seconds
-                responses:0
+                responses:0 //tracks number of responses to the outgoing telex.
             };                
             //send the message
             doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});

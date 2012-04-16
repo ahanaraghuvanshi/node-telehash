@@ -35,12 +35,12 @@ function doConnector(name, onConnect) {
     console.log("Connecting...to: ", name);
     var connector = telehash.connect(name);
     
-    connector.send('CONNECT', 10, function(obj){
+    connector.send({con:'CONNECT'}, 10, function(obj){
         if( obj ){
-           handleResponse(obj.from,obj.telex,onConnect);
+           handleResponse(obj.from,obj.message,onConnect);
         }else{        
            //connect timeout..
-           setTimeOut( function(){
+           setTimeout( function(){
                 doConnector(name,onConnect);           
            }, 2000 ); //try again after 2 seconds
         }    
@@ -59,10 +59,9 @@ function doListener(name, onConnect) {
     });
 }
 
-function createNewPeer(id, from) {
+function createNewPeer(from) {
     //return an object to use to communicate with the connected peer
     var peer = {
-        id: id,
         ipp: from,
         send: function (buffer) { //msg should be a Buffer()
             OOBSend(from, buffer);
@@ -110,7 +109,10 @@ function onOOBData(msg, rinfo) {
 }
 
 function handleConnect(s, telex, callback) {
-    console.error("Got A CONNECT request from: " + telex['+from'] + "+connect=" + telex['+connect'] + " via:" + s.ipp);
+
+    if( telex['+message'].con != "CONNECT") return;
+    
+    console.log("Got A CONNECT request from: " + telex['+from'] + " via:" + s.ipp);
 
     var end = new hlib.Hash(telex['+from']).toString();
     var from = telex['+from'];
@@ -118,10 +120,9 @@ function handleConnect(s, telex, callback) {
 
     //if we are behind NAT, and remote end is behind SNAT or we are both behind the same NAT send back via relay
     if (self.nat && (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to))) {
-
         s.send({
             '+end': end,
-            '+message': "CONNECT_FAILED",
+            '+message': {status:"FAILED", from:self.me.ipp},
             '+response': id,
             '+from': self.me.ipp,
             '_hop':1
@@ -130,26 +131,21 @@ function handleConnect(s, telex, callback) {
         telehash.send(from, {
             '+from': self.me.ipp,
             '+response': id,
-            '+message': 'OK'
+            '+message': {status:'OK', from:self.me.ipp}
         }); //data telex informing them of our ip:port
         if (!peers[from]) {
-            callback(createNewPeer(id, from));
+            callback(createNewPeer(from));
         }
     }
 }
 
-function handleResponse(s, telex, callback) {
-    if (telex['+message'] == "CONNECT_FAILED") {
-        console.error("CONNECT FAILED");
+function handleResponse(from, message, callback) {
+    if (message.status == "FAILED") {
+        console.error("CONNECTION FAILED");
         return;
-    }
+    }       
 
-    console.error("GOT OK from: " + telex['+from'] + "response=" + telex['+response']);
-
-    var from = telex['+from'];
-    var id = telex['+response'];
-
-    if (!peers[from]) {
-        callback(createNewPeer(id, from));
+    if (!peers[message.from]) {
+        callback(createNewPeer(message.from));
     }
 }
