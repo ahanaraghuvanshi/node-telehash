@@ -33,12 +33,18 @@ function init(arg) {
 //callback onConnect with a new peer handler object
 function doConnector(name, onConnect) {
     console.log("Connecting...to: ", name);
-    telehash.connect({
-        id: name
-    }, function (s, telex) {
-        handleResponse(s, telex, onConnect);
+    var connector = telehash.connect(name);
+    
+    connector.send('CONNECT', 10, function(obj){
+        if( obj ){
+           handleResponse(obj.from,obj.telex,onConnect);
+        }else{        
+           //connect timeout..
+           setTimeOut( function(){
+                doConnector(name,onConnect);           
+           }, 2000 ); //try again after 2 seconds
+        }    
     });
-
 }
 
 //using the telehash.listen() function accept connections from switches on the network looking for 'name'
@@ -104,7 +110,7 @@ function onOOBData(msg, rinfo) {
 }
 
 function handleConnect(s, telex, callback) {
-    console.error("Got A +CONNECT request from: " + telex['+from'] + "+connect=" + telex['+connect'] + " via:" + s.ipp);
+    console.error("Got A CONNECT request from: " + telex['+from'] + "+connect=" + telex['+connect'] + " via:" + s.ipp);
 
     var end = new hlib.Hash(telex['+from']).toString();
     var from = telex['+from'];

@@ -37,8 +37,9 @@ exports.shutdown = doShutdown;
 
 // internals
 var self;
-var listeners = [];     //maintain an array of .tap rules we are interested in
-var connectors = {};    //maintains a hashtable of ends we are interested in contacting indexed by a connection 'cid' number. used in +connect signals
+var listeners = [];         //maintain an array of .tap rules we are interested in
+var connectors = {};        //maintains a hashtable of ends we are interested in contacting indexed by a end name.
+var responseHandlers = {};  //maintains a hashtable of response handlers indexed by connection 'guid' number used in +connect signals
 
 /*
    STATE.OFFLINE: initial state
@@ -326,17 +327,27 @@ function doSignals(from, telex) {
         
 }
 
+function timeoutResponseHandlers(){
+    for (var guid in responseHandlers){
+        if( Date.now() > responseHandlers[guid].timeout ) {
+            if(!responseHandlers[guid].responses) responseHandlers[guid].callback(undefined);
+            delete responseHandlers[guid];
+        }
+    }
+}
 function handleConnectResponses(from,telex){
 
     if (telex['+response']) {
-        //this would be a relayed telex +reponse to our outgoing +connect (could be direct or relayed)
-        for (var cid in connectors) {
-            if (cid == telex['+response']) {
-                connectors[cid].callback(from, telex);
+        //this would be a telex +reponse to our outgoing +connect (could be direct or relayed)
+        for (var guid in responseHandlers) {
+            if (guid == telex['+response'] && responseHandlers[guid].callback ) {
+                responseHandlers[guid].responses++;
+                responseHandlers[guid].callback({s:from, telex:telex, count:responseHandlers[guid].responses});
+                
                 return true;
             }
         }
-        return true;    
+        return true;
     }
     return false;
 }
@@ -348,10 +359,9 @@ function sendPOPRequest(ipp) {
 }
 
 function doNews(s) {
-    //new .seen switch
-    
+    //new .seen switch    
     if(self && self.me){
-      console.error("Pinging New switch: ",s.ipp);   
+      console.error("Pinging New switch: ",s.ipp);
       if(s.via){
         s.popped = true;
         doSend(s.via,{
@@ -476,21 +486,27 @@ function sendTapRequests( noRateLimit ) {
     });
 }
 
-//setup a connector to indicate what ends we want to send +connect signals to
-function doConnect(arg, callback) {
+//setup a connector to indicate what ends we want to communicate with
+//only one connector per end is created. The connectors role is to constantly dial the end only
+//returns a connector object used to actually send signals to the end.
+function doConnect(end_name) {
     if (!self.me) return;
 
-    //TODO disconnect: by cid
-    var hash = new hlib.Hash(arg.id);
-    var cid = Date.now().toString(); //TODO add a sequence # to the end. to ensure unique id if many connects happen in short period of time
-    var connector = {
-        id: arg.id,
-        end: hash.toString(),
-        cid: cid,
-        callback: callback,
-        message: arg.message
+    if( connectors[end_name] ) return connectors[end_name];
+    
+    connectors[end_name] = {
+        id: end_name,
+        send: function(message, timeOut,callback){
+            var guid = Date.now().toString();//new guid for message
+            responseHandlers[guid]={ 
+                callback: callback, //add a handler for the responses
+                timeout: Date.now()+(timeOut*1000),  //responses must arrive within timeOut seconds
+                responses:0
+            };                
+            //send the message
+            doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});
+        }
     };
-    connectors[cid] = connector;
 
     //helper if we are behind symmetric NAT
     //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..
@@ -498,22 +514,24 @@ function doConnect(arg, callback) {
     if(self.mode != MODE.ANNOUNCER){
         doFarListen({
             id: self.me.ipp,
-            connect: arg.id
+            connect: end_name
         }, undefined);
     }
     //}
-    console.log("ADDED CONNECTOR");
+    console.log("ADDED CONNECTOR TO: " + end_name);
     connectLoop(); //kick start connector
-    return cid; //for disconnecting
+    
+    return connectors[end_name];
 }
 
 function connectLoop() {
     if (self && self.state != STATE.online) return;
-    // dial the end continuously, timer to re-dial closest, wait forever for response and call back   
-    for (var cid in connectors) {
-        console.error("CONNECTOR:",connectors[cid].id," message:",connectors[cid].message);        
-        doDial(connectors[cid].id);
-        doAnnounce(connectors[cid].id, {'+connect':cid,'+from':self.me.ipp,'+message':connectors[cid].message});
+    
+    timeoutResponseHandlers();
+    
+    // dial the end continuously, timer to re-dial closest, wait forever for response and call back
+    for (var end in connectors) {
+        doDial( end );
     }
 }
 //some lower level functions
@@ -626,7 +644,7 @@ function scan() {
     // first just cull any not healthy, easy enough
     all.forEach(function (s) {
         if (!s.healthy()) s.drop();
-    });
+    });    
 
     all = slib.getSwitches();
 
