@@ -131,7 +131,7 @@ function worker(telex, callback) {
 
     if (telex['+end'] && (!telex._hop || parseInt(telex._hop) == 0)) {
         if(master.mode()==MODE.FULL) doEnd(s, new hlib.Hash(null, telex['+end']));
-        callback();
+        callback();//dont process telex further: dial telexes should only contain an +end signal with _hop=0
         return;
     }
 
@@ -157,13 +157,16 @@ function worker(telex, callback) {
     */
 function doEnd(s, end) {
     s.popped = true; //switch was able to contact us directly so it's 'popped'
+    var me = getSelf();
     var near = getNear(end);
     //TODO: If none are closer or if the nearer Switches are dampened (congestion control), .see back only ourselves.
     var healthyNear = [];
     near.forEach(function (ipp) {
         var ss = getSwitch(ipp);
-        //TODO: only allow private IPs if we are seeding with a private DHT
+        //only allow private IPs if we are seeding with a private DHT
         //and only allow public IPs if we are seeding with a public DHT
+        if (util.isPrivateIP(me.ipp) && util.isPublicIP(ipp)) return;
+        if (util.isPublicIP(me.ipp) && util.isPrivateIP(ipp)) return;
         if( ss.self && ss.visible) return healthyNear.push(ipp);
         if (ss.healthy() && ss.visible && ss.line ) healthyNear.push(ipp);
     });
@@ -224,7 +227,10 @@ function doSignals(s, telex) {
             }
         }
     }
+    
     // find any network.*.rules and match, relay the signals
+    //TODO: need to do basic duplicate detection, only process a unique set of signals at
+    // most once every 10 seconds (hash the sorted string sigs/values).    
     var switches = getSwitches();
 
     if(master.mode()==MODE.FULL){
@@ -288,29 +294,6 @@ Switch.prototype.forward = function (telex, arg) {
     this.send(newTelex);
 }
 
-/* below implementation forwards DATA - wrong according to telehash spec.
-//forward an incoming telex, strip out headers keeping signals and raw data
-Switch.prototype.forward = function (telex, arg) {
-    var newTelex = {};
-
-    Object.keys(telex).forEach(function (key) {
-        //stip off headers
-        if (key == '_line') return; //this will be set by .send anyway
-        if (key == '_br') return; // "
-        if (key == '_to') return; // "
-        if (key == '_ring') return; // just in case
-        if (key == '_hop') {
-            //increase _hop by 1
-            newTelex['_hop'] = telex['_hop'] + 1;
-            return;
-        }
-        newTelex[key] = telex[key];
-    });
-    if (!newTelex['_hop']) newTelex['_hop'] = 1;
-    console.error("Relaying:" + JSON.stringify(newTelex) + " TO:" + this.ipp);
-    this.send(newTelex);
-}
-*/
 // send telex to switch
 Switch.prototype.send = function (telex) {
  
