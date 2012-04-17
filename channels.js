@@ -6,6 +6,7 @@ exports.init = init;
 exports.connect = doConnector;
 exports.listen = doListener;
 
+var knocks = {};
 var peers = {};
 var self;
 
@@ -54,8 +55,8 @@ function doListener(name, onConnect) {
     console.log("Listening...for:", name);
     telehash.listen({
         id: name
-    }, function (s, telex) {
-        handleConnect(s, telex, onConnect);
+    }, function ( conn ) {
+        handleConnect(conn, onConnect);
     });
 }
 
@@ -100,6 +101,11 @@ function OOBSendRaw(to, buffer) {
 //should be coming from a peer we have already established a connection with!
 function onOOBData(msg, rinfo) {
     var from = rinfo.address + ":" + rinfo.port;
+    //is it a knock?
+    if(msg.toString() == "TELEHASH#KNOCK\n") {
+        knocks[from] = {at:Date.now()};
+        return;
+    }
     //raw data - pass it to the callback for handling
     for (var ipp in peers) {
         if (peers[ipp].ipp == from) {
@@ -108,43 +114,50 @@ function onOOBData(msg, rinfo) {
     }
 }
 
-function handleConnect(s, telex, callback) {
+function handleConnect(conn, callback) {
 
-    if( telex['+message'].con != "CONNECT") return;
+    if( conn.message.con != "CONNECT") return;
     
-    console.log("Got A CONNECT request from: " + telex['+from'] + " via:" + s.ipp);
+    console.log("Got A CONNECT request from: " + conn.from + " via:" + conn.source);
 
-    var end = new hlib.Hash(telex['+from']).toString();
-    var from = telex['+from'];
-    var id = telex['+connect'];
-
-    //if we are behind NAT, and remote end is behind SNAT or we are both behind the same NAT send back via relay
-    if (self.nat && (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to))) {
-        s.send({
-            '+end': end,
-            '+message': {status:"FAILED", from:self.me.ipp},
-            '+response': id,
-            '+from': self.me.ipp,
-            '_hop':1
-        }); //signals to be relayed back
-    } else {
-        telehash.send(from, {
-            '+from': self.me.ipp,
-            '+response': id,
-            '+message': {status:'OK', from:self.me.ipp}
-        }); //data telex informing them of our ip:port
-        if (!peers[from]) {
-            callback(createNewPeer(from));
+    if(conn.visible){
+        if(!self.nat){
+            conn.reply({status:'OK', from:self.me.ipp});
+            if (!peers[conn.from]) {
+                callback(createNewPeer(conn.from));
+            }
+            return;
+        }
+    }else{
+        if(!self.nat){
+            conn.reply({status:"NAT", from:self.me.ipp});
+            //open a 10 second window to allow other end to send an OOB knock from ip address util.IP(conn.from)
+            //and callback new peer.
+            setTimeout(function(){
+                //check knocks
+                for(var ipp in knocks){
+                    if( util.IP(ipp) == util.IP(conn.from) ){
+                        if((knocks[ipp].at +10000 > Date.now()) && !peers[ipp]) {
+                            callback(createNewPeer(ipp));
+                        }
+                    }
+                }            
+            },10000);
+            return;
         }
     }
+    
+    conn.reply({status:"FAILED", from:self.me.ipp});
 }
 
 function handleResponse(from, message, callback) {
-    if (message.status == "FAILED") {
-        console.error("CONNECTION FAILED");
+    if( message.status == "FAILED"){
         return;
-    }       
-
+    }
+    if (message.status == "NAT") {
+        console.log("Sending KNOCK To:"+message.from);
+        OOBSend(message.from, new Buffer('TELEHASH#KNOCK\n'));
+    }
     if (!peers[message.from]) {
         callback(createNewPeer(message.from));
     }

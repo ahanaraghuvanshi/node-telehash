@@ -265,7 +265,7 @@ function handleSeedTelex(telex, from, len) {
 
     if (telex._to && self.me && !self.snat && (util.IP(telex._to) == self.me.ip) && (self.me.ipp !== telex._to)) {
         //we are behind symmetric NAT
-        console.log("Symmetric NAT detected!", JSON.stringify(telex), "from:", from);
+        console.log("Symmetric NAT detected!");
         self.snat = true;
         self.nat = true;
         self.me.visible = false; //hard to be seen behind an SNAT :(
@@ -317,6 +317,7 @@ function doSignals(from, telex) {
     if(telex['.tap'] || telex['.see']) return;
     
     if( handleConnectResponses(from,telex) ) return;//intercept +response signals
+    if( handleConnects(from,telex)) return;//intercept +connect signals
     
     //look for listener .tapping signals in this telex and callback it's handler
     listeners.forEach(function (listener) {
@@ -334,6 +335,50 @@ function timeoutResponseHandlers(){
             delete responseHandlers[guid];
         }
     }
+}
+function handleConnects(from,telex){
+    //return an object containing the message and a function to send reply
+    //the reply function will send via relay if direct is not possible
+    //indicate in object which type of reply will occur!
+    if(!telex['+connect']) return false;
+    
+    listeners.forEach(function (listener) {
+
+        if( slib.ruleMatch(telex, listener.rule) && listener.cb ) {
+            listener.cb({
+                message:telex['+message'],
+                from:telex['+from'],
+                source:from.ipp,
+                to:telex._to,
+                visible: !(telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)),
+                reply:function(message){
+                    var end = new hlib.Hash(telex['+from']).toString();
+                    //if remote end is behind SNAT or we are behind the same NAT send back via relay
+                    if (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)) {
+                        var end = new hlib.Hash(telex['+from']).toString();
+                        from.send({
+                            '+end': end,
+                            '+message': message,
+                            '+response': telex['+connect'],
+                            '_hop':1
+                        }); //signals to be relayed back
+                    }else {
+                        //quick pop!
+                        var target = slib.getSwitch(telex['+from']);
+                        if(!target.popped) {
+                            target.popped;            
+                            from.send({'+end':end, '+pop':'th:'+self.me.ipp, "_hop":1});
+                        }                    
+                        doSend(telex['+from'], {
+                            '+message': message,
+                            '+response': telex['+connect']
+                        }); //direct telex
+                    }                                       
+                }
+            });
+        }
+    }); 
+    return true;
 }
 function handleConnectResponses(from,telex){
 
@@ -365,6 +410,7 @@ function doNews(s) {
       if(s.via){
         s.popped = true;
         doSend(s.via,{
+            '+end': s.end,
             '+pop':'th:'+self.me.ipp,
             '_hop':1
         });           
@@ -456,27 +502,28 @@ function listenLoop() {
             });
         });
         
-        //doDial( listener.id );
+        //doDial( listener.id ); //<<--not using this so we can support the FarListen.. where listener.end != listener.hash
     });
     sendTapRequests();
 }
 
 //TODO: from telehash.org/proto.html, under section common patterns:.. then send a .tap of which Signals to observe to those Switches close to the End along with some test Signals, who if willing will respond with process the .tap and immediately send the matching Signals back to confirm that it's active.
 function sendTapRequests( noRateLimit ) {
+//TODO make sure to only .tap visible switches..
     var limit = noRateLimit ? false : true;
     var tapRequests = {}; //hash of .tap arrays indexed by switch.ipp 
-    //loop through all listeners and agregate the .tap rules for each switch
+    //loop through all listeners and aggregate the .tap rules for each switch
     listeners.forEach(function (listener) {
         var switches = slib.getNear(listener.hash);
         switches.forEach(function (s) {
             if (!tapRequests[s]) tapRequests[s] = [];
             tapRequests[s].push(listener.rule);
         });
-
     });
+    
     Object.keys(tapRequests).forEach(function (ipp) {
         var s = slib.getSwitch(ipp);
-        if (!s.line) return; //only send out the .tap request of we have a line open
+        if (!s.line) return; //only send out the .tap request if we have a line open
         //don't send .tap too often.. need to allow time to get closer to the end we are interested in
         if (limit && s.lastTapRequest && (s.lastTapRequest + 40000 > Date.now())) return;
         doSend(ipp, {
@@ -491,7 +538,8 @@ function sendTapRequests( noRateLimit ) {
 //returns a connector object used to actually send signals to the end.
 function doConnect(end_name) {
     if (!self.me) return;
-
+    if (self.state != STATE.online ) return;
+    
     if( connectors[end_name] ) return connectors[end_name];
     
     connectors[end_name] = {

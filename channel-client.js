@@ -6,16 +6,21 @@ channels.init({
     }
 });
 
+setInterval(function(){
+        connect();
+},20000);
+    
 function connect() {
     //this will establish a connection to any switche(s) on the network
     //listening for 'telehash.echo.server'. onConnect will be called for each remote switch
     //which accepts the connection request.
     //note: The connect process is continious and will keep attempting to connect to all and any switches
     //on the network, as they join and leave.
-    channels.connect("telehash.echo.server", onConnect);    
+    
+    channels.connect("telehash.echo.server", onConnect);
 }
 
-function onConnect(server) {
+function onConnect(server) {   
     //when a connection is made we get back a server object we can use to communicate with the
     //remote switch
     console.log("CONNECTED TO:",server.ipp);

@@ -1,6 +1,7 @@
 var channels = require('./channels');
 
 channels.init({
+    mode:2,
     ready: function () { //will be called when we are seeded    	
         connect();
     }
