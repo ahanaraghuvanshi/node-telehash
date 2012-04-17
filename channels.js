@@ -105,7 +105,7 @@ function onOOBData(msg, rinfo) {
     if(msg.toString() == "TELEHASH#KNOCK\n"){
     	knocks.forEach(function(K){
     		if(K.ip == rinfo.address && K.timeout > Date.now() ){
-                K.callback(createNewPeer(from));
+                if(!peers[from]) K.callback(createNewPeer(from));
     		}
     	});
         return;
@@ -121,7 +121,7 @@ function onOOBData(msg, rinfo) {
 function handleConnect(conn, callback) {
 
     if( conn.message.con != "CONNECT") return;
-    
+    if( peers[conn.from]) return;//already connected
     console.log("Got A CONNECT request from: " + conn.from + " via:" + conn.source);
 
     if(conn.visible){
@@ -156,6 +156,7 @@ function handleResponse(from, message, callback) {
     if( message.status == "FAILED"){
         return;
     }
+    if( peers[message.from] ) return;//already connected
     if (message.status == "NAT") {
         console.log("Sending KNOCK To:"+message.from);
         OOBSend(message.from, new Buffer('TELEHASH#KNOCK\n'));
