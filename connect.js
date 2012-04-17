@@ -2,6 +2,7 @@ var telehash = require("./telehash");
 var hlib = require("./hash");
 
 telehash.init({mode:2});
+
 telehash.seed(function (err) {
     if (err) {
         console.log(err);
@@ -13,14 +14,25 @@ telehash.seed(function (err) {
 function connect(name) {
 
     var connector = telehash.connect( name );
-    
-    connector.send("TeleHash Rocks!", 5, function ( obj ) {
+    var gotResponse = false;
+        
+    connector.send("TeleHash Rocks!", function ( obj ) {    
         if( obj ){
+        
            console.log("Reply #"+ obj.count+" MESSAGE: ", obj.message, "from:", obj.from);
-        }else{        
-           console.log("Reply TIMEOUT! Retrying..");
-           setTimeout(function(){connect(name);},1000);      
+           gotResponse = true;
+           
+        }else{
+        
+           if(!gotResponse){        
+               console.log("No Replies! :( Retrying..");
+               setTimeout(function(){connect(name);},100);
+           }else{
+            console.log("We got our replies.. yay!");
+            telehash.shutdown();
+            process.exit();
+           }
         }
-    });   
+    },5);//timeout after 5 seconds.
     
 }

@@ -17,8 +17,8 @@ function server(name) {
         id: name
     }, function ( conn ) {
 
-        console.log("<<-- MESSAGE:", conn.message );
-        conn.reply( "Got your message, '"+conn.message+"'" );
+        console.log("<<-- MESSAGE:", conn.message, " from:", conn.from, " via:", conn.source );
+        conn.reply( "I Agree, '"+conn.message+"'" );
        
     });
 }
