@@ -6,7 +6,7 @@ exports.init = init;
 exports.connect = doConnector;
 exports.listen = doListener;
 
-var knocks = {};
+var knocks = []
 var peers = {};
 var self;
 
@@ -14,7 +14,7 @@ function init(arg) {
     if (self) return self;
 
     self = telehash.init({
-	    mode:2,
+        mode:2,
         handleOOB: onOOBData,	//capture out-of-band packets coming into the switch
         seeds: arg.seeds
     });
@@ -102,10 +102,14 @@ function OOBSendRaw(to, buffer) {
 function onOOBData(msg, rinfo) {
     var from = rinfo.address + ":" + rinfo.port;
     //is it a knock?
-    if(msg.toString() == "TELEHASH#KNOCK\n") {
-        knocks[from] = {at:Date.now()};
+    if(msg.toString() == "TELEHASH#KNOCK\n"){
+    	knocks.forEach(function(K){
+    		if(K.ip == rinfo.address && K.timeout > Date.now() ){
+                K.callback(createNewPeer(from));
+    		}
+    	});
         return;
-    }
+    }    
     //raw data - pass it to the callback for handling
     for (var ipp in peers) {
         if (peers[ipp].ipp == from) {
@@ -130,19 +134,17 @@ function handleConnect(conn, callback) {
         }
     }else{
         if(!self.nat){
+        	
             conn.reply({status:"NAT", from:self.me.ipp});
             //open a 10 second window to allow other end to send an OOB knock from ip address util.IP(conn.from)
             //and callback new peer.
-            setTimeout(function(){
-                //check knocks
-                for(var ipp in knocks){
-                    if( util.IP(ipp) == util.IP(conn.from) ){
-                        if((knocks[ipp].at +10000 > Date.now()) && !peers[ipp]) {
-                            callback(createNewPeer(ipp));
-                        }
-                    }
-                }            
-            },10000);
+            
+            knocks.push({
+            	ip:util.IP(conn.from),
+            	cb:callback,
+            	timeout:Date.now()+10000
+            });
+
             return;
         }
     }
