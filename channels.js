@@ -141,7 +141,7 @@ function handleConnect(conn, callback) {
             
             knocks.push({
             	ip:util.IP(conn.from),
-            	cb:callback,
+            	callback:callback,
             	timeout:Date.now()+10000
             });
 
