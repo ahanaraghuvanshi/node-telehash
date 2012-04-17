@@ -1,5 +1,7 @@
 var telehash = require("./telehash");
 
+telehash.init({mode:3});//full switch mode
+
 telehash.seed(function (err) {
     if (err) {
         console.log(err);
