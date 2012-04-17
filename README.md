@@ -1,7 +1,6 @@
 # Overview - TeleHash
 
-http://telehash.org/about.html 
-'TeleHash is a new wire protocol for exchanging JSON in a real-time and fully decentralized manner, enabling applications to connect directly and participate as servers on the edge of the network. It is designed to efficiently route and distribute small bits of data in order for applications to discover each other directly or in relation to events around piece of shared content. The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is radically decentralized with no servers or points of central control.'
+'TeleHash is a new wire protocol for exchanging JSON in a real-time and fully decentralized manner, enabling applications to connect directly and participate as servers on the edge of the network. It is designed to efficiently route and distribute small bits of data in order for applications to discover each other directly or in relation to events around piece of shared content. The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is radically decentralized with no servers or points of central control.' http://telehash.org/about.html
 
 
 
@@ -12,11 +11,8 @@ http://telehash.org/about.html
 
 This module provides a simple high-level API for using TeleHash. Currently it has the following basic functions:
 
-    high-level: listen(), connect()
-    low-level: dial(), announce(), tap(), send()
+    listen(), connect(), dial(), announce(), tap(), send()
     
-
-## High Level API
 
 ## listen( {id:end_name}, callback_function )
 
@@ -116,8 +112,6 @@ Channels can only be established under certain conditions related to the type of
     SNAT            no NAT          YES //Switch B must be the listener
     SNAT            NAT/SNAT        NO  //almost impossible
 
-
-## Low Level Functions
 
 ## dial( end_name )
 
