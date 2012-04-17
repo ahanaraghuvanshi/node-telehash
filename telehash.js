@@ -78,7 +78,7 @@ function getSelf(arg) {
     if (self) return self;
     self = arg || {};
 
-    if(!self.mode) self.mode = MODE.FULL; //default operating mode
+    if(!self.mode) self.mode = MODE.LISTENER; //default operating mode
     
     self.state = STATE.offline; //start in offline state
     if (!self.seeds) self.seeds = ['208.68.164.253:42424', '208.68.163.247:42424'];
@@ -331,7 +331,7 @@ function doSignals(from, telex) {
 function timeoutResponseHandlers(){
     for (var guid in responseHandlers){
         if( Date.now() > responseHandlers[guid].timeout ) {
-            if(!responseHandlers[guid].responses) responseHandlers[guid].callback(undefined);
+            if(responseHandlers[guid].callback) responseHandlers[guid].callback(undefined);//always callback after timeout..
             delete responseHandlers[guid];
         }
     }
@@ -466,6 +466,7 @@ function doFarListen(arg, callback) {
     };
     listeners.push(listener);
     console.log("DOING FAR LISTEN");
+    listenLoop();//kick start far listeners to get our responses from first time.
     return listener;
 }
 
@@ -544,15 +545,16 @@ function doConnect(end_name) {
     
     connectors[end_name] = {
         id: end_name,
-        send: function(message, timeOut,callback){
+        send: function(message, callback, timeOut){
             var guid = Date.now().toString();//new guid for message
             responseHandlers[guid]={ 
                 callback: callback, //add a handler for the responses
-                timeout: Date.now()+(timeOut*1000),  //responses must arrive within timeOut seconds
+                timeout: timeOut? Date.now()+(timeOut*1000):Date.now()+(10*1000),  //responses must arrive within timeOut seconds, or default 10 seconds
                 responses:0 //tracks number of responses to the outgoing telex.
             };                
             //send the message
             doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});
+            console.log("Sending message: " + JSON.stringify(message)+" guid:"+guid);
         }
     };
 

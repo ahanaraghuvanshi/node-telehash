@@ -14,7 +14,7 @@ function init(arg) {
     if (self) return self;
 
     self = telehash.init({
-	mode:2,
+	    mode:2,
         handleOOB: onOOBData,	//capture out-of-band packets coming into the switch
         seeds: arg.seeds
     });
@@ -32,20 +32,20 @@ function init(arg) {
 //using the telehash.connect() function find switches on the network listening for 'name'
 //and establish a line to them. the connection setup is handeled by handleResponse which will
 //callback onConnect with a new peer handler object
-function doConnector(name, onConnect) {
+function doConnector(name, onConnect, retry) {
     console.log("Connecting...to: ", name);
     var connector = telehash.connect(name);
     
-    connector.send({con:'CONNECT'}, 10, function(obj){
+    connector.send({con:'CONNECT'}, function(obj){
         if( obj ){
            handleResponse(obj.from,obj.message,onConnect);
         }else{        
-           //connect timeout..
+           //connect timeout..loop again.
            setTimeout( function(){
                 doConnector(name,onConnect);           
-           }, 2000 ); //try again after 2 seconds
+           }, retry? retry*1000:20000 ); //try again after 'retry' seconds, or 20 seconds default
         }    
-    });
+    },10);//10 second timeout for responses
 }
 
 //using the telehash.listen() function accept connections from switches on the network looking for 'name'
