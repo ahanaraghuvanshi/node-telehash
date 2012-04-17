@@ -1,5 +1,9 @@
 # Overview - TeleHash
 
+http://telehash.org/about.html 
+'TeleHash is a new wire protocol for exchanging JSON in a real-time and fully decentralized manner, enabling applications to connect directly and participate as servers on the edge of the network. It is designed to efficiently route and distribute small bits of data in order for applications to discover each other directly or in relation to events around piece of shared content. The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is radically decentralized with no servers or points of central control.'
+
+
 
 # Telehash Node.js module
 
@@ -105,7 +109,7 @@ see alice.js and bob.js for more advanced example which illustrates the behaviou
 
 Channels can only be established under certain conditions related to the type of NAT a peer is operating behind of:
 
-    Switch A        Switch B        Channel can be opened?
+    Switch A        Switch B        Channel can be established?
     NAT             NAT             YES //but must not be behind the same NAT
     NAT             no NAT          YES
     no NAT          no NAT          YES
@@ -119,25 +123,25 @@ Channels can only be established under certain conditions related to the type of
 
     telehash.dial( '@telehash' );
     
-    Will dial once to find the closest switches to that end_name. (end_name is the plain text, not its hash)
+Will dial once to find the closest switches to that end_name. (end_name is the plain text, not its hash)
 
 ## announce(end_name, signals )
 
     telehash.announce( '@telehash', {'+foo':'abcd...'} );
     
-    Will send signals into the network aimed at the end_name. (end_name is the plain text name of the end, not its hash)
+Will send signals into the network aimed at the end_name. (end_name is the plain text name of the end, not its hash)
 
 ## tap(end_name, rule, function(){} )
 
     telehash.tap( '@telehash', {...}, function(sw,telex){} )
     
-    Will send a .tap request to the switches closest to end_name for signals expressed in a single rule. When switches forward telexes to us matching the tap rule the callback function is fired with a copy of the telex.
+Will send a .tap request to the switches closest to end_name for signals expressed in a single rule. When switches forward telexes to us matching the tap rule the callback function is fired with a copy of the telex.
 
 ## send(to, telex)
 
     telehash.send('1.2.3.4:56789', {'+end':'1a2b3c...'} );
     
-    Send will send a telex directly to a switch given by it's ip:port.
+Send will send a telex directly to a switch given by it's ip:port.
 
 see the wall.js example for example of all the low-level functions.
 
