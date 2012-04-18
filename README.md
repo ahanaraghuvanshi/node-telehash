@@ -144,14 +144,14 @@ see the wall.js example for example dial,announce, and tap functions.
 
 ## Try it Out..! :)
 
-    Get the code:
+Get the code:
     
-    git clone git://github.com/mnaamani/node-telehash.git
+    git clone git://github.com/mnaamani/node-telehash.git    
+    
+Try the chat application. Join the telehash chat lobby:
+
     cd node-telehash/
-    
-    Try the chat application. Join the telehash chat lobby:
-    
-    node chat.js @your_nick_name
+    node chat @your_nick_name
 
 
 
