@@ -21,9 +21,13 @@ if( !process.argv[2] ) {
 nickName = process.argv[2];
 if( process.argv[3] ) chatRoom = process.argv[3];
 
-
-
-
+stdin.on('data', function(chunk){
+        if(chunk.length > 1 ){
+            if(connector) connector.send( {txt:chunk, nick:nickName} );
+        }
+    });
+    
+    
 telehash.seed(function (err) {
     if (err) {
         console.log(err);
@@ -34,7 +38,7 @@ telehash.seed(function (err) {
 
 function chat(name) {
 
-    connector = telehash.connect( name, true ); 
+    connector = telehash.connect( name, true );
           
     telehash.listen( name, function( MSG ){
         var msg_sig = MSG.guid + MSG.from
@@ -49,15 +53,9 @@ function chat(name) {
             
         }
     });
-        
-    stdin.on('data', function(chunk){
-        if(chunk.length > 1 ){
-            connector.send( {txt:chunk, nick:nickName} );
-        }
-    });
-    
+   
     console.log("Joining chat room: "+ name+" as " + nickName);
-    connector.send({x:'join', nick:nickName});            
+    connector.send({x:'join', nick:nickName});
 }
 
 //cant catch SIGINT signals on windows!
