@@ -542,31 +542,33 @@ function sendTapRequests( noRateLimit ) {
 //setup a connector to indicate what ends we want to communicate with
 //only one connector per end is created. The connectors role is to constantly dial the end only
 //returns the connector object used to actually send signals to the end.
-function doConnect(end_name) {
+function doConnect(end_name, excpectResponse) {
     if (!self.me) return;
     if (self.state != STATE.online ) return;
     
     if( connectors[end_name] ) return connectors[end_name];
-    
+        
     connectors[end_name] = {
         id: end_name,
         send: function(message, callback, timeOut){
             var guid = Date.now().toString();//new guid for message
-            responseHandlers[guid]={ 
-                callback: callback, //add a handler for the responses
-                timeout: timeOut? Date.now()+(timeOut*1000):Date.now()+(10*1000),  //responses must arrive within timeOut seconds, or default 10 seconds
-                responses:0 //tracks number of responses to the outgoing telex.
-            };                
+            if(callback){//dont setup a response handler if we are not interested in a response!                
+                responseHandlers[guid]={ 
+                    callback: callback, //add a handler for the responses
+                    timeout: timeOut? Date.now()+(timeOut*1000):Date.now()+(10*1000),  //responses must arrive within timeOut seconds, or default 10 seconds
+                    responses:0 //tracks number of responses to the outgoing telex.
+                };
+            }     
             //send the message
             doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});
-            console.log("Sending message: " + JSON.stringify(message)+" guid:"+guid);
+            console.error("Sending message: " + JSON.stringify(message)+" guid:"+guid);
         }
     };
 
     //helper if we are behind symmetric NAT
     //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..    
     //if(self.snat) {
-    if(self.mode != MODE.ANNOUNCER){
+    if(self.mode != MODE.ANNOUNCER && excpectResponse ){
         doFarListen({
             id: self.me.ipp,
             connect: end_name
