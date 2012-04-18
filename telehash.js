@@ -180,6 +180,7 @@ function pingSeeds() {
         var hash = new hlib.Hash(ipp);
         var s = slib.getSwitch(ipp);
         s.seed = true; //mark it as a seed - (during scan check if we have lines open to any initial seeds)
+        s.visible = true;
         s.popped = true;
         s.send({
             '+end': hash.far()
@@ -723,7 +724,7 @@ function scan() {
 
     //ping all...
     all.forEach(function (s) {
-        doPing(s.ipp);
+        if(s.visible) doPing(s.ipp);
     });
 
     //if we lost connection to all initial seeds.. ping them all again?
@@ -735,7 +736,8 @@ function scan() {
         pingSeeds();
     }
 
-    return; //TODO work on buckets later..
+    return; //TODO work on buckets...
+    
     // TODO overall, ping first X of each bucket
     all.sort(function (a, b) {
         return self.me.hash.distanceTo(a.hash) - self.me.hash.distanceTo(b.hash);

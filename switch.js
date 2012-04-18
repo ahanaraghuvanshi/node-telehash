@@ -9,8 +9,34 @@ var MODE = {
     ANNOUNCER:1
 };
 
-// global hash of all known switches by ipp or hash
+// global hash of all known switches by ipp
 var network = {};
+
+// A Full Switch needs to do basic duplicate detection, it should only process a unique set of signals at
+// most once every 10 seconds (hash the sorted string sigs/values).
+
+// cache: keeps tracks of processed signals
+var signalsCache = {};
+function cacheHit( telex ){
+    var sig = "";
+    //how to sort a hashtable? convert to array?
+    Object.keys(telex).forEach( function(key){
+        if( key[0]='+' ) sig += (key+telex[key]);        
+    });
+    var hash = new hlib.Hash( sig ).toString();
+    
+    if( !signalsCache[hash]){
+        signalsCache[hash] = Date.now();
+        return false;//cache miss
+    }else{
+        if( signalsCache[hash] +10000 < Date.now() ){
+            signalsCache[hash] = Date.now();
+            return false;//cache miss
+        }else {
+            return true;//cache hit
+        }
+    }
+}
 
 // callbacks must be set first, and must have 
 // .data(switch, {telex for app}) and .sock.send() being udp socket send, news(switch) for new switch creation
@@ -106,8 +132,11 @@ Switch.prototype.process = function (telex, rawlen) {
     if (this.BRout && this.BR - this.BRout > 12000) return;
     this.BRin = (telex._br) ? parseInt(telex._br) : undefined;
     if (this.BRin < 0) delete this.line; // negativity is intentionally signalled line drop (experimental)
+    
     // TODO, if no ATrecv yet but we sent only a single +end last (dialing) and a +pop request for this ip, this 
     // could be a NAT pingback and we should re-send our dial immediately
+    
+    
     // timer tracking
     this.ATrecv = Date.now();
 
@@ -129,7 +158,11 @@ function worker(telex, callback) {
         if (Array.isArray(telex['.see'])) doSee(s, telex['.see']);
         if (master.mode()==MODE.FULL && Array.isArray(telex['.tap'])) doTap(s, telex['.tap']);
     }
-
+    
+    if(cacheHit(telex)) {
+        callback();return;
+    }
+    
     if (telex['+end'] && (!telex._hop || parseInt(telex._hop) == 0)) {
         if(master.mode()==MODE.FULL) doEnd(s, new hlib.Hash(null, telex['+end']));
         callback();//dont process telex further: dial telexes should only contain an +end signal with _hop=0
