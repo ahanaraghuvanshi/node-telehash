@@ -83,7 +83,11 @@ function getSelf(arg) {
     self.state = STATE.offline; //start in offline state
     if (!self.seeds) self.seeds = ['208.68.164.253:42424', '208.68.163.247:42424'];
 
-    util.getLocalIP();
+    //detec local interfaces    
+    var localifs = util.getLocalIP();
+    if(!localifs.length){
+        self.nat = true;    //if this is windows and we cannot detect interfaces, force NAT
+    }
     // udp socket
     self.server = dgram.createSocket("udp4", incomingDgram);
 
@@ -233,12 +237,14 @@ function incomingDgram(msg, rinfo) {
 function handleSeedTelex(telex, from, len) {
 
     //do NAT detection once
-    if (!self.me && telex._to && !util.isLocalIP(telex._to)) {
-        //we are behind NAT
-        self.nat = true;
-        console.log("NAT Detected!");
+    if(!self.nat){
+        if (!self.me && telex._to && !util.isLocalIP(telex._to)) {
+            //we are behind NAT
+            self.nat = true;
+            console.log("NAT Detected!");
+        }
     }
-
+    
     //first telex from seed will establish our identity
     if (!self.me && telex._to) {
         self.me = slib.getSwitch(telex._to);

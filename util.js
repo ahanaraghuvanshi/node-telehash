@@ -11,7 +11,7 @@ exports.PORT = PORT;
 
 var ipAddr;
 
-//return list of local IP addresses (excluding 127.0.0.1)
+//return list of local IP addresses
 function get_local_ip_addresses() {
     if (ipAddr) return ipAddr; //only do detecion once..
     ipAddr = [];
@@ -22,7 +22,7 @@ function get_local_ip_addresses() {
         var alias = 0;
         ifaces[dev].forEach(function (details) {
             if (details.family == 'IPv4') {
-                if (details.address != '127.0.0.1') ipAddr.push(details.address);
+                ipAddr.push(details.address);
                 console.error(dev + (alias ? ':' + alias : ''), details.address);
                 ++alias;
             }
