@@ -18,12 +18,14 @@ var network = {};
 // cache: keeps tracks of processed signals
 var signalsCache = {};
 function cacheHit( telex ){
-    var sig = "";
-    //how to sort a hashtable? convert to array?
+    var sigarray = [];
     Object.keys(telex).forEach( function(key){
-        if( key[0]='+' ) sig += (key+telex[key]);        
+        if( key[0]='+' ) sigarray.push( key+JSON.stringify(telex[key]));
     });
-    var hash = new hlib.Hash( sig ).toString();
+    sigarray.sort(function(a,b){
+        return (a > b);
+    });
+    var hash = new hlib.Hash( sigarray.join('') ).toString();
     
     if( !signalsCache[hash]){
         signalsCache[hash] = Date.now();
@@ -157,25 +159,23 @@ function worker(telex, callback) {
     if (telex['_line'] == s.line) { //assuming telex is validated there should be a _line open
         if (Array.isArray(telex['.see'])) doSee(s, telex['.see']);
         if (master.mode()==MODE.FULL && Array.isArray(telex['.tap'])) doTap(s, telex['.tap']);
-    }
-    
-    if(cacheHit(telex)) {
-        callback();return;
-    }
+    }      
     
     if (telex['+end'] && (!telex._hop || parseInt(telex._hop) == 0)) {
         if(master.mode()==MODE.FULL) doEnd(s, new hlib.Hash(null, telex['+end']));
         callback();//dont process telex further: dial telexes should only contain an +end signal with _hop=0
         return;
     }
-
+        
     // if there's any signals, check for matching taps to relay to
-    if (Object.keys(telex).some(function (x) {
-        return x[0] == '+'
-        }) && !(parseInt(telex['_hop']) >= 4)) {
-            doSignals(s, telex);
-    } else {//else added to prevent passing telex to both master.data and master.signals if a telex contains both
-            //signals and data which we are tapping for
+    if (Object.keys(telex).some(function (x) {return x[0] == '+'}) && !(parseInt(telex['_hop']) >= 4)) {    
+        if(cacheHit(telex)) {
+            callback();return;
+        }
+        doSignals(s, telex);
+    } else {
+        //else added to prevent passing telex to both master.data and master.signals if a telex contains both
+        //signals and data which we are tapping for
             
         // if there's any raw data, send to master
         if (Object.keys(telex).some(function (x) {
