@@ -12,18 +12,18 @@ exports.init = getSelf;
 exports.seed = doSeed;
 
 // before using listen and connect, should seed() first for best karma!
-// listen({id:'asdf'}, function(switch, telex){}) - give an id to listen to on the dHT, callback fires whenever incoming telexes arrive to it.
+
+// listen('id', function(switch, telex){}) - give an id to listen to on the dHT, callback fires whenever incoming messages (requests) arrive to it.
 // essentially this gives us a way to announce ourselves on the DHT by a sha1 hash of given id. 
-// think of the id like a dns hostname,url,email address,mobile number.
+// think of the id like a dns hostname,url,email address,mobile number...etc.
 exports.listen = doListen;
 
-// connect({id:'asdf', message:'abcd..'}, function(switch, telex){}) - id to connect to, and optional message to send, callback function on response.
-// a example of a response telex could include the ip:port of the remote switch. (analogous to doing a DNS lookup on the internet)
+// connect('id') - id to connect to. Will return a 'connector' object used to send messages (requests), and handle responses
 exports.connect = doConnect;
 
 // send('ip:port', {...}) - sends the given telex to the target ip:port
 // will attempt to find it and punch through any NATs, etc, but is lossy, no guarantees/confirmations
-// its best to use this function rather than the Switch.prototype.send() directly to handle +pop ing firewalls.
+// it's best to use this function rather than the Switch.prototype.send().
 exports.send = doSend;
 
 
@@ -39,7 +39,7 @@ exports.shutdown = doShutdown;
 var self;
 var listeners = [];         //maintain an array of .tap rules we are interested in
 var connectors = {};        //maintains a hashtable of ends we are interested in contacting indexed by a end name.
-var responseHandlers = {};  //maintains a hashtable of response handlers indexed by connection 'guid' number used in +connect signals
+var responseHandlers = {};  //maintains a hashtable of response handlers indexed by connection 'guid'
 
 /*
    STATE.OFFLINE: initial state
@@ -117,7 +117,8 @@ function getSelf(arg) {
 
     // start timer to monitor all switches and drop any over thresholds and not in buckets
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
-    // start timer to send out .tap and discover switches closer to the ends we want to .tap
+    
+    // start timer to send out .taps and dial switches closer to the ends we want to .tap
     self.connect_listen_Interval = setInterval(connect_listen, 10000);
 
     return self;
@@ -387,8 +388,7 @@ function handleConnectResponses(from,telex){
         for (var guid in responseHandlers) {
             if (guid == telex['+response'] && responseHandlers[guid].callback ) {
                 responseHandlers[guid].responses++;
-                responseHandlers[guid].callback({from:from.ipp, message:telex['+message'], count:responseHandlers[guid].responses});
-                
+                responseHandlers[guid].callback({from:from.ipp, message:telex['+message'], count:responseHandlers[guid].responses});                
                 return true;
             }
         }
@@ -437,7 +437,6 @@ function doPopTap() {
                 'has': ['+pop']
             }
         });
-        //setTimeout( sendTapRequests, 2000);
         sendTapRequests(true);
         //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
     }
@@ -536,7 +535,7 @@ function sendTapRequests( noRateLimit ) {
 
 //setup a connector to indicate what ends we want to communicate with
 //only one connector per end is created. The connectors role is to constantly dial the end only
-//returns a connector object used to actually send signals to the end.
+//returns the connector object used to actually send signals to the end.
 function doConnect(end_name) {
     if (!self.me) return;
     if (self.state != STATE.online ) return;
@@ -559,7 +558,7 @@ function doConnect(end_name) {
     };
 
     //helper if we are behind symmetric NAT
-    //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..
+    //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..    
     //if(self.snat) {
     if(self.mode != MODE.ANNOUNCER){
         doFarListen({
@@ -603,7 +602,7 @@ function doTap(end, rule, callback){
 
 function doAnnounce(end, signals){
     if (self.snat) signals['+snat'] = true;
-    signals._hop = 1; 
+    signals._hop = 1;
     var hash = new hlib.Hash(end);
     signals['+end']=hash.toString();
     var switches = slib.getNear(hash);
