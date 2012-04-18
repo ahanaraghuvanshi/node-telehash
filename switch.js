@@ -90,7 +90,8 @@ function Switch(ipp, arg) {
     }
     return this;
 }
-exports.Switch = Switch;
+//since this is a high-level API discourage use of Switch directly.
+//exports.Switch = Switch;
 
 // process incoming telex from this switch
 Switch.prototype.process = function (telex, rawlen) {
@@ -194,7 +195,7 @@ function doSee(s, see) {
             if (util.isPublicIP(me.ipp) && util.isPrivateIP(ipp)) return;
         }
         if (!network[ipp]) {
-            console.log('.seeing ' + ipp);
+            console.error('.seeing ' + ipp);
             var new_switch = new Switch(ipp, {via:s.ipp});//add it to the network
         }
         network[ipp].visible = true;
