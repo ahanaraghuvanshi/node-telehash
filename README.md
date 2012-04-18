@@ -33,7 +33,7 @@ This will seed you into the DHT and actively wait for any connect requests sent 
 
 See listen.js for a detailed example.
 
-## connect(end_name)
+## connect(end_name, discardResponse )
 
     var telehash = require("./telehash");
     telehash.seed( function(err){
@@ -43,7 +43,7 @@ See listen.js for a detailed example.
         });      
     });
 
-The connect() function will return a connector object. In the background the connector will use the DHT to find anyone listening for the end_name 'echo'. Using the connector's send function we can then send actual messages (as a sting or JSON object) to the listeners. Replies will fire the callback function, with a response object (which contains the message).
+The connect() function will return a connector object. In the background the connector will use the DHT to find anyone listening for the end_name 'echo'. Using the connector's send function we can then send actual messages (as a sting or JSON object) to the listeners. Replies will fire the callback function, with a response object. (discardResponse is optional parameter to indicate if we want to discard all responses. defaults to false)
 
 ## connector.send( {...}, callback, timeout_s )
 
@@ -112,7 +112,10 @@ Channels can only be established under certain conditions related to the type of
     SNAT            no NAT          YES //Switch B must be the listener
     SNAT            NAT/SNAT        NO  //almost impossible
 
-
+    *NAT*   refers to a non Symmetric NAT. (
+    *SNAT*  refers to a Symmetric NAT.
+    ref: http://en.wikipedia.org/wiki/Network_address_translation
+    
 ## dial( end_name )
 
     telehash.dial( '@telehash' );
@@ -137,12 +140,26 @@ Will send a .tap request to the switches closest to end_name for signals express
     
 Send will send a telex directly to a switch given by it's ip:port.
 
-see the wall.js example for example of all the low-level functions.
+see the wall.js example for example dial,announce, and tap functions.
+
+## Try it Out..! :)
+
+    Get the code:
+    
+    git clone git://github.com/mnaamani/node-telehash.git
+    cd node-telehash/
+    
+    Try the chat application. Join the telehash chat lobby:
+    
+    node chat.js @your_nick_name
+
+
 
 ## Notes
 
 The code produces alot of debug output so I suggest you redirect the stderr to /dev/null while running.
-For reliable NAT detection we use node.js's os.networkInterfaces() wich is not yet implemented for windows.
+    ex. node chat.js 2>/dev/null
+        node chat.js 2> nul         (on windows)        
 
 ## TODO
 
@@ -150,6 +167,8 @@ For reliable NAT detection we use node.js's os.networkInterfaces() wich is not y
 ## Refrence
     TeleHash.Org: http://telehash.org/
     official TeleHash github repo: https://github.com/quartzjer/TeleHash
-    Locket Project: https://github.com/LockerProject/Locker
+    Locker Project: https://github.com/LockerProject/Locker
+    NATs: http://en.wikipedia.org/wiki/Network_address_translation
+    Kademlia: http://en.wikipedia.org/wiki/Kademlia
 
 
