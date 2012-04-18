@@ -24,7 +24,9 @@ function wall( THEWALL ){
     tap.is = {};
     tap.is["+end"] = endHash.toString();
     tap.has = ["+wall"];
+    
     console.log("Write Something on the Wall: ", THEWALL);
+    
     telehash.tap( THEWALL, tap, function(from,telex){
         //TODO:Keep a short history of incoming telexes and drop duplicates
         console.log(new Date() + " <" + from.ipp + "> " + telex["+wall"]);

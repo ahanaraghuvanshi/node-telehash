@@ -472,11 +472,11 @@ function doFarListen(arg, callback) {
 
 // setup a listener for the hash of arg.id
 // we want to receive telexe which have a +connect signal in them.
-function doListen(arg, callback) {
+function doListen(id, callback) {
     if (!self.me) return;
     if (self.mode == MODE.ANNOUNCER ) return;
     //add a listener for arg.id 
-    var hash = new hlib.Hash(arg.id);
+    var hash = new hlib.Hash(id);
     var rule = {
         'is': {
             '+end': hash.toString()
@@ -484,7 +484,7 @@ function doListen(arg, callback) {
         'has': ['+connect']
     };
     
-    doTap(arg.id, rule, callback);
+    doTap(id, rule, callback);
 }
 
 function listenLoop() {
@@ -660,6 +660,7 @@ function doSend(to, telex) {
 }
 
 function doShutdown() {
+    self.mode = MODE.offline;
     clearTimeout(self.scanTimeout);
     clearInterval(self.connect_listen_Interval);
     if (self.seedTimeout) {

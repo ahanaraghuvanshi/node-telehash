@@ -14,11 +14,11 @@ This module provides a simple high-level API for using TeleHash. Currently it ha
     listen(), connect(), dial(), announce(), tap(), send()
     
 
-## listen( {id:end_name}, callback_function )
+## listen( end_name, callback )
 
     var telehash = require("./telehash");
     telehash.seed( function(err){
-        telehash.listen({ id: 'echo' },
+        telehash.listen('echo',
             function ( request ) {
                 console.log(request.message);
             }
@@ -45,13 +45,13 @@ See listen.js for a detailed example.
 
 The connect() function will return a connector object. In the background the connector will use the DHT to find anyone listening for the end_name 'echo'. Using the connector's send function we can then send actual messages (as a sting or JSON object) to the listeners. Replies will fire the callback function, with a response object (which contains the message).
 
-## connector.send( {...}, function(){}, timeout_seconds )
+## connector.send( {...}, callback, timeout_s )
 
-The send function takes optional callback function and timeout parameters. Responses must arrive within the timeout period or they will get discarded. The callback will always be fired after the timeout period expires with an empty (undefined) reponse object.
+The send function takes optional callback function and timeout parameters. Responses must arrive within the timeout_s (seconds) period or they will get discarded. The callback will always be fired after the timeout period expires with an empty (undefined) reponse object.
 
 See connect.js for a detailed example.
 
-## Channels Module: built on connect() and listen functions
+## Channels Module: built using connect() and listen() functions
 
 Using the basic *connect* and *listen* functions a *channels* module is implemented to establish a peer-to-peer UDP *session/channel* between two switches.
 (Current implementation uses Out-of-Band channel over the underlying switch UDP socket)
@@ -98,7 +98,7 @@ To open a channel to a listener listening for 'telehash.echo.server' we use chan
     }
 
 Once the channel is open you could build anything ontop of it: establishing voice/video streams, exchanging files, sending emails.. anything really.
-It is upto you however to implement peer trust/authentication etc. (anyone can listen for any end/hash)
+It is upto you however to implement peer trust/authentication etc. (anyone can listen for any end/hash), and a realiable UDP transport mechanism (if required).
 
 see the channel-listen.js and channel-connect.js for simple examples.
 see alice.js and bob.js for more advanced example which illustrates the behaviour of channels better.
@@ -125,11 +125,11 @@ Will dial once to find the closest switches to that end_name. (end_name is the p
     
 Will send signals into the network aimed at the end_name. (end_name is the plain text name of the end, not its hash)
 
-## tap(end_name, rule, function(){} )
+## tap(end_name, rule, callback )
 
     telehash.tap( '@telehash', {...}, function(sw,telex){} )
     
-Will send a .tap request to the switches closest to end_name for signals expressed in a single rule. When switches forward telexes to us matching the tap rule the callback function is fired with a copy of the telex.
+Will send a .tap request to the switches closest to end_name for signals expressed in a single rule object. When switches forward telexes to us matching the tap rule the callback function is fired passing a copy of the telex and the switch (sw) which forwarded the telex.
 
 ## send(to, telex)
 

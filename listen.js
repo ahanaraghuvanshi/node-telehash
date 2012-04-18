@@ -13,12 +13,9 @@ telehash.seed(function (err) {
 });
 
 function server(name) {
-    telehash.listen({
-        id: name
-    }, function ( conn ) {
-
-        console.log("<<-- MESSAGE:", conn.message, " from:", conn.from, " via:", conn.source );
-        conn.reply( "I Agree, '"+conn.message+"'" );
-       
-    });
+    telehash.listen(name, function ( conn ) {
+            console.log("<<-- MESSAGE:", conn.message, " from:", conn.from, " via:", conn.source );
+            conn.reply( "I Agree, '"+conn.message+"'" );
+        }
+    );
 }

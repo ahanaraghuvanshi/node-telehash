@@ -53,9 +53,7 @@ function doConnector(name, onConnect, retry) {
 //with a new peer handler object
 function doListener(name, onConnect) {
     console.log("Listening...for:", name);
-    telehash.listen({
-        id: name
-    }, function ( conn ) {
+    telehash.listen(name, function ( conn ) {
         handleConnect(conn, onConnect);
     });
 }
@@ -125,7 +123,7 @@ function handleConnect(conn, callback) {
     console.log("Got A CONNECT request from: " + conn.from + " via:" + conn.source);
 
     if(conn.visible){
-        if(!self.nat){
+        if(!self.snat){
             conn.reply({status:'OK', from:self.me.ipp});
             if (!peers[conn.from]) {
                 callback(createNewPeer(conn.from));
