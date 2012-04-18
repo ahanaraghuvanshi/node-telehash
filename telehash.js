@@ -251,15 +251,15 @@ function handleSeedTelex(telex, from, len) {
         self.me.self = true; // flag switch to not send to itself
         clearTimeout(self.seedTimeout);
         delete self.seedTimeout;
-        console.log("our identity:",self.me.ipp," hash=",self.me.end);
+        console.log("our identity:",self.me.ipp," hash:",self.me.end);
         //delay...to allow time for SNAT detection (we need a response from another seed)
         setTimeout(function () {
-            console.log("GOING ONLINE");
             if (!self.snat && self.mode == MODE.FULL){
                  self.me.visible = true; //become visible (announce our-selves in .see commands)
-                 console.log('Making ourself Visible..');
+                 console.error('Making ourself Visible..');
             }
             self.state = STATE.online;
+            console.log("GOING ONLINE: nat:",self.nat," snat:",self.snat, " visible:", self.me.visible," mode:", self.mode);
             if(self.nat) doPopTap(); //only needed if we are behind NAT
             if (self.onSeeded) self.onSeeded();
         }, 2000);
@@ -343,6 +343,7 @@ function timeoutResponseHandlers(){
         }
     }
 }
+
 function handleConnects(from,telex){
     //return an object containing the message and a function to send reply
     //the reply function will send via relay if direct is not possible
@@ -353,34 +354,34 @@ function handleConnects(from,telex){
 
         if( slib.ruleMatch(telex, listener.rule) && listener.cb ) {
             listener.cb({
+                guid:telex['+connect'],
                 message:telex['+message'],
                 from:telex['+from'],
                 source:from.ipp,
                 to:telex._to,
                 visible: !(telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)),
                 reply:function(message){
-                    var end = new hlib.Hash(telex['+from']).toString();
-                    //if remote end is behind SNAT or we are behind the same NAT send back via relay
-                    if (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)) {
-                        var end = new hlib.Hash(telex['+from']).toString();
-                        from.send({
-                            '+end': end,
-                            '+message': message,
-                            '+response': telex['+connect'],
-                            '_hop':1
-                        }); //signals to be relayed back
-                    }else {
-                        //quick pop!
-                        var target = slib.getSwitch(telex['+from']);
-                        if(!target.popped) {
-                            target.popped;            
-                            from.send({'+end':end, '+pop':'th:'+self.me.ipp, "_hop":1});
-                        }                    
-                        doSend(telex['+from'], {
-                            '+message': message,
-                            '+response': telex['+connect']
-                        }); //direct telex
-                    }                                       
+                        var end = new hlib.Hash(telex['+from']).toString();                     
+                        //if remote end is behind SNAT or we are behind the same NAT send back via relay
+                        if (telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)) {
+                            from.send({
+                                '+end': end,
+                                '+message': message,
+                                '+response': telex['+connect'],
+                                '_hop':1
+                            }); //signals to be relayed back
+                        }else {
+                            //quick pop!
+                            var target = slib.getSwitch(telex['+from']);
+                            if(!target.popped) {
+                                target.popped;            
+                                from.send({'+end':end, '+pop':'th:'+self.me.ipp, "_hop":1});
+                            }                    
+                            doSend(telex['+from'], {
+                                '+message': message,
+                                '+response': telex['+connect']
+                            }); //direct telex
+                        }  
                 }
             });
         }
@@ -542,7 +543,7 @@ function sendTapRequests( noRateLimit ) {
 //setup a connector to indicate what ends we want to communicate with
 //only one connector per end is created. The connectors role is to constantly dial the end only
 //returns the connector object used to actually send signals to the end.
-function doConnect(end_name, excpectResponse) {
+function doConnect(end_name, noResponse) {
     if (!self.me) return;
     if (self.state != STATE.online ) return;
     
@@ -550,32 +551,32 @@ function doConnect(end_name, excpectResponse) {
         
     connectors[end_name] = {
         id: end_name,
-        send: function(message, callback, timeOut){
-            var guid = Date.now().toString();//new guid for message
-            if(callback){//dont setup a response handler if we are not interested in a response!                
-                responseHandlers[guid]={ 
-                    callback: callback, //add a handler for the responses
-                    timeout: timeOut? Date.now()+(timeOut*1000):Date.now()+(10*1000),  //responses must arrive within timeOut seconds, or default 10 seconds
-                    responses:0 //tracks number of responses to the outgoing telex.
-                };
-            }     
-            //send the message
-            doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});
-            console.error("Sending message: " + JSON.stringify(message)+" guid:"+guid);
-        }
+        send:function(message, callback, timeOut){
+                var guid = Date.now().toString();//new guid for message
+                if(callback){//dont setup a response handler if we are not interested in a response!                
+                    responseHandlers[guid]={ 
+                        callback: callback, //add a handler for the responses
+                        timeout: timeOut? Date.now()+(timeOut*1000):Date.now()+(10*1000),  //responses must arrive within timeOut seconds, or default 10 seconds
+                        responses:0 //tracks number of responses to the outgoing telex.
+                    };
+                }     
+                //send the message
+                doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});
+                console.error("Sending message: " + JSON.stringify(message)+" guid:"+guid);
+            }
     };
 
     //helper if we are behind symmetric NAT
     //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..    
     //if(self.snat) {
-    if(self.mode != MODE.ANNOUNCER && excpectResponse ){
+    if(self.mode != MODE.ANNOUNCER && !noResponse ){
         doFarListen({
             id: self.me.ipp,
             connect: end_name
         }, undefined);
     }
     //}
-    console.log("ADDED CONNECTOR TO: " + end_name);
+    console.error("ADDED CONNECTOR TO: " + end_name);
     connectLoop(); //kick start connector
     
     return connectors[end_name];
@@ -603,7 +604,7 @@ function doTap(end, rule, callback){
         cb: callback
     };
     listeners.push(listener);
-    console.log("ADDED LISTENER");
+    console.error("ADDED LISTENER FOR: "+end);
     return listener;
 }
 

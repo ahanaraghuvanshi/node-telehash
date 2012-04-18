@@ -80,7 +80,7 @@ function Switch(ipp, arg) {
     this.seed = false;
     this.ip = this.ipp.substr(0, this.ipp.indexOf(':'));
     this.port = parseInt(this.ipp.substr(this.ipp.indexOf(':') + 1));
-    console.log("New Switch created: " + this.ipp);
+    console.error("New Switch created: " + this.ipp);
     if( arg && (arg.via || arg.init) ){
         //this switch has been .seen or we are created directly using 'new Switch(ipp, {init:true})'
         master.news(this);//pop it, ping it and open a line!
