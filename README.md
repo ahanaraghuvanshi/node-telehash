@@ -1,15 +1,28 @@
 # Overview - TeleHash
 
-'TeleHash is a new wire protocol for exchanging JSON in a real-time and fully decentralized manner, enabling applications to connect directly and participate as servers on the edge of the network. It is designed to efficiently route and distribute small bits of data in order for applications to discover each other directly or in relation to events around piece of shared content. The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is radically decentralized with no servers or points of central control.' http://telehash.org/about.html
-
-
+'TeleHash is a new wire protocol for exchanging JSON in a real-time and fully decentralized manner, enabling applications to connect directly and participate as servers on the edge of the network. It is designed to efficiently route and distribute small bits of data in order for applications to discover each other directly or in relation to events around piece of shared content. The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is radically decentralized with no servers or points of central control.' Findout more @ http://telehash.org/about.html
 
 # Telehash Node.js module
 
 * Based on the original code from https://github.com/quartzjer/node-telehash by Jeremie Miller.
 * Everything works but it is still alpha. (excpect some API changes as we move forward)
 
-This module provides a simple high-level API for using TeleHash. Currently it has the following basic functions:
+This module provides a simple high-level API for using TeleHash.     
+
+## Try it Out..! :)
+
+Get the code:
+    
+    git clone git://github.com/mnaamani/node-telehash.git    
+    
+Try the chat application. Join the telehash chat lobby:
+
+    cd node-telehash/
+    node chat @your_nick_name
+    
+## Quick Reference of the API
+
+Currently the API is simple and has the following basic functions:
 
     listen(), connect(), dial(), announce(), tap(), send()
     
@@ -112,7 +125,7 @@ Channels can only be established under certain conditions related to the type of
     SNAT            no NAT          YES //Switch B must be the listener
     SNAT            NAT/SNAT        NO  //almost impossible
 
-    *NAT*   refers to a non Symmetric NAT. (
+    *NAT*   refers to a non Symmetric NAT.
     *SNAT*  refers to a Symmetric NAT.
     ref: http://en.wikipedia.org/wiki/Network_address_translation
     
@@ -141,19 +154,6 @@ Will send a .tap request to the switches closest to end_name for signals express
 Send will send a telex directly to a switch given by it's ip:port.
 
 see the wall.js example for example dial,announce, and tap functions.
-
-## Try it Out..! :)
-
-Get the code:
-    
-    git clone git://github.com/mnaamani/node-telehash.git    
-    
-Try the chat application. Join the telehash chat lobby:
-
-    cd node-telehash/
-    node chat @your_nick_name
-
-
 
 ## Notes
 
