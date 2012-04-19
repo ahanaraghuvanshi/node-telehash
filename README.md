@@ -122,11 +122,11 @@ Channels can only be established under certain conditions related to the type of
     NAT             NAT             YES //but must not be behind the same NAT
     NAT             no NAT          YES
     no NAT          no NAT          YES
-    SNAT            no NAT          YES //Switch B must be the listener
+    SNAT            no NAT          YES
     SNAT            NAT/SNAT        NO  //almost impossible
 
-    *NAT*   refers to a non Symmetric NAT.
-    *SNAT*  refers to a Symmetric NAT.
+    *NAT*   non Symmetric NAT
+    *SNAT*  Symmetric NAT
     ref: http://en.wikipedia.org/wiki/Network_address_translation
     
 ## dial( end_name )
