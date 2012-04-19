@@ -1,5 +1,9 @@
 var channels = require('./channels');
 
+var channel_name = "telehash.echo.server";
+
+if(process.argv[2]) channel_name = process.argv[2];
+
 channels.init({    
     ready: function () { //will be called when we are seeded    	
         connect();
@@ -13,7 +17,7 @@ function connect() {
     //note: The connect process will keep retrying to connect after a default 20 sec timeout so we can
     //keep attempting to connect to all and any switches as they join and leave the network
     
-    channels.connect("telehash.echo.server", onConnect, 30);
+    channels.connect(channel_name, onConnect, 30);
 }
 
 function onConnect(server) {   
