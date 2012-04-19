@@ -30,7 +30,7 @@ exports.send = doSend;
 exports.tap = doTap;
 exports.dial = doDial;
 exports.announce = doAnnounce;
-
+exports.ping = doPing;
 
 // as expected
 exports.shutdown = doShutdown;
@@ -106,14 +106,18 @@ function getSelf(arg) {
         
     };
     
-    //disable tapping, master signal handlers and connect/listen functions
+    //disable tapping, master signal handlers and limit connect/listen functions with warnings.
     if(self.mode == MODE.ANNOUNCER){
         callbacks.data = callbacks.signals = function(){};
         exports.tap = function(){
-            console.log("Tapping not supported in Announcer Mode.");
+            console.log("WARNING: Tapping not supported in Announcer Mode.");
         };
-        exports.connect = exports.listen = function(){
-            console.log("connect/listen feature not supported in Announcer Mode.");
+        exports.connect = function(end_name){
+            console.log("WARNING: No Responses will be received in Announcer Mode");
+            return doConnect(end_name, true);
+        };
+        exports.listen = function(){
+            console.log("WARNING: Listen feature not supported in Announcer Mode.");
         };
     }
     
@@ -123,7 +127,7 @@ function getSelf(arg) {
     self.scanTimeout = setInterval(scan, 25000); // every 25sec, so that it runs 2x in <60 (if behind a NAT to keep mappings alive)
     
     // start timer to send out .taps and dial switches closer to the ends we want to .tap
-    self.connect_listen_Interval = setInterval(connect_listen, 10000);
+    self.connect_listen_Interval = setInterval(connect_listen, 5000);
 
     return self;
 }
@@ -359,7 +363,7 @@ function handleConnects(from,telex){
                 message:telex['+message'],
                 from:telex['+from'],
                 source:from.ipp,
-                to:telex._to,
+                /*
                 visible: !(telex['+snat'] || util.IP(telex['+from']) == util.IP(telex._to)),
                 reply:function(message){
                         var end = new hlib.Hash(telex['+from']).toString();                     
@@ -384,6 +388,23 @@ function handleConnects(from,telex){
                             }); //direct telex
                         }  
                 }
+                */
+                // always return via relay signals..
+                reply:function(message){
+                    if(!telex['+from']) return;//if we didn't get send us their end we can't reply
+                    from.send({
+                        '+end': telex['+from'],
+                        '+message': message,
+                        '+response': telex['+connect'],
+                        '_hop':1
+                    });
+                },
+                send:function(ipp,message){
+                    doSend(ipp, {
+                        '+message': message,
+                        '+response': telex['+connect']
+                    }); //direct telex
+                }
             });
         }
     }); 
@@ -396,7 +417,7 @@ function handleConnectResponses(from,telex){
         for (var guid in responseHandlers) {
             if (guid == telex['+response'] && responseHandlers[guid].callback ) {
                 responseHandlers[guid].responses++;
-                responseHandlers[guid].callback({from:from.ipp, message:telex['+message'], count:responseHandlers[guid].responses});                
+                responseHandlers[guid].callback({from:from.ipp, message:telex['+message'], count:responseHandlers[guid].responses});
                 return true;
             }
         }
@@ -552,9 +573,10 @@ function doConnect(end_name, noResponse) {
         
     connectors[end_name] = {
         id: end_name,
+        snat: (self.snat ? true : false ),//indicator if we are behind snat
         send:function(message, callback, timeOut){
                 var guid = Date.now().toString();//new guid for message
-                if(callback){//dont setup a response handler if we are not interested in a response!                
+                if(callback && self.mode != MODE.ANNOUNCER ){//dont setup a response handler if we are not interested in a response!                
                     responseHandlers[guid]={ 
                         callback: callback, //add a handler for the responses
                         timeout: timeOut? Date.now()+(timeOut*1000):Date.now()+(10*1000),  //responses must arrive within timeOut seconds, or default 10 seconds
@@ -562,13 +584,20 @@ function doConnect(end_name, noResponse) {
                     };
                 }     
                 //send the message
-                doAnnounce(end_name, {'+connect':guid,'+from':self.me.ipp,'+message':message});
+                if(callback && !noResponse && self.mode != MODE.ANNOUNCER ){
+                    //changed to send end instead of ip:port. (maintain some anonymity)
+                    //if ip:port needs to be shared..send it in the message.
+                    doAnnounce(end_name, {'+connect':guid,'+from':self.me.end,'+message':message});
+                }else{
+                    //dont share our ip.. if we dont have to
+                    doAnnounce(end_name, {'+connect':guid,'+message':message});
+                }
                 console.error("Sending message: " + JSON.stringify(message)+" guid:"+guid);
             }
     };
 
     //helper if we are behind symmetric NAT
-    //also needed if both switches behind same NAT but we can't know this at this stage so we will do it by default..    
+    //also needed if both switches behind same NAT but we can't know this at this point so we will do it by default..    
     //if(self.snat) {
     if(self.mode != MODE.ANNOUNCER && !noResponse ){
         doFarListen({
@@ -612,7 +641,7 @@ function doTap(end, rule, callback){
 
 function doAnnounce(end, signals){
     if (self.snat) signals['+snat'] = true;
-    signals._hop = 1;
+    signals['_hop'] = 1;
     var hash = new hlib.Hash(end);
     signals['+end']=hash.toString();
     var switches = slib.getNear(hash);
@@ -635,7 +664,8 @@ function doDial( end ){
 
 function doPing(to){
     doSend(to, {
-        "+end": self.me.end
+        '+end': self.me.end,
+        '_hop': 0
     });
 }
 
@@ -723,6 +753,7 @@ function scan() {
     }
 
     //ping all...
+    //TODO if they haven't .seen us.. send them a .see along with ping
     all.forEach(function (s) {
         if(s.visible) doPing(s.ipp);
     });
