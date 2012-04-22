@@ -41,13 +41,13 @@ function chat(name) {
     connector = telehash.connect( name, true );
           
     telehash.listen( name, function( MSG ){
-        var msg_sig = MSG.guid + MSG.from
+        var msg_sig = MSG.guid + MSG.message;
         if(!chatCache[msg_sig]){
             if( MSG.message.x){
-                if( MSG.message.x == 'join' ) console.log(MSG.from, " [JOINED] as "+MSG.message.nick);
-                if( MSG.message.x == 'leave' ) console.log(MSG.from, " [LEFT THE CHAT] <"+MSG.message.nick+">");
+                if( MSG.message.x == 'join' ) console.log("[JOINED] "+MSG.message.nick);
+                if( MSG.message.x == 'leave' ) console.log("[LEFT THE CHAT] <"+MSG.message.nick+">");
             }else{
-                if( MSG.message.txt) console.log("<" + (MSG.message.nick? MSG.message.nick : MSG.from) + ">: " + MSG.message.txt);
+                if( MSG.message.txt) console.log("<" + MSG.message.nick + ">: " + MSG.message.txt);
             }
             chatCache[msg_sig] = true;
             
