@@ -657,7 +657,8 @@ function doDial( end ){
 function doPing(to){
     doSend(to, {
         '+end': self.me.end,
-        '_hop': 0
+        '_hop': 0,
+        '.see': self.me.visible ? [self.me.ipp]:[]  //should mark the remote switch that we sent them a .see for ourself so not to repeat it constantly
     });
 }
 
@@ -747,7 +748,7 @@ function scan() {
     //ping all...
     //TODO if they haven't .seen us.. send them a .see along with ping
     all.forEach(function (s) {
-        if(s.visible) doPing(s.ipp);
+        if(s.line) doPing(s.ipp);
     });
 
     //if we lost connection to all initial seeds.. ping them all again?
