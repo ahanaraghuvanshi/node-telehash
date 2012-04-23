@@ -19,25 +19,22 @@ var network = {};
 var signalsCache = {};
 function cacheHit( telex ){
     var sigarray = [];
+
     Object.keys(telex).forEach( function(key){
         if( key[0]='+' ) sigarray.push( key+JSON.stringify(telex[key]));
     });
+    
     sigarray.sort(function(a,b){
         return (a > b);
     });
-    var hash = new hlib.Hash( sigarray.join('') ).toString();
     
-    if( !signalsCache[hash]){
-        signalsCache[hash] = Date.now();
-        return false;//cache miss
-    }else{
-        if( signalsCache[hash] +10000 < Date.now() ){
-            signalsCache[hash] = Date.now();
-            return false;//cache miss
-        }else {
-            return true;//cache hit
-        }
-    }
+    var hash = new hlib.Hash(sigarray.join('')).toString();
+    
+    if(signalsCache[hash] && (signalsCache[hash] +10000 > Date.now())) return true;//cache hit 
+    
+    signalsCache[hash] = Date.now();
+    return false;//cache miss
+  
 }
 
 // callbacks must be set first, and must have 
@@ -91,6 +88,13 @@ function getNear(endh, s, num) {
     var x = Object.keys(network).sort(function (a, b) {
         return endh.distanceTo(network[a].hash) - endh.distanceTo(network[b].hash);
     });
+    
+    x = x.filter(function(a){
+        var sw = network[a];
+        if(sw.self && sw.visible) return true;
+        return( sw.line && sw.visible && sw.healthy() );
+    });
+    
     return x.slice(0, num);
 }
 exports.getNear = getNear;
@@ -191,21 +195,27 @@ function worker(telex, callback) {
     */
 function doEnd(s, end) {
     s.popped = true; //switch was able to contact us directly so it's 'popped'
+    var endh = new hlib.Hash(null,end);
     var me = getSelf();
-    var near = getNear(end);
-    //TODO: If none are closer or if the nearer Switches are dampened (congestion control), .see back only ourselves.
-    var healthyNear = [];
-    near.forEach(function (ipp) {
-        var ss = getSwitch(ipp);
-        //only allow private IPs if we are seeding with a private DHT
-        //and only allow public IPs if we are seeding with a public DHT
-        if (util.isPrivateIP(me.ipp) && util.isPublicIP(ipp)) return;
-        if (util.isPublicIP(me.ipp) && util.isPrivateIP(ipp)) return;
-        if( ss.self && ss.visible) return healthyNear.push(ipp);
-        if (ss.healthy() && ss.visible && ss.line ) healthyNear.push(ipp);
+    var near = getNear(end);    
+    //TODO: if the nearer Switches are dampened (congestion control) .see back only ourselves.
+    
+    // only allow private IPs if we are seeding with a private DHT
+    // and only allow public IPs if we are seeding with a public DHT
+    var valid = near.filter(function (ipp) {
+        if (util.isPrivateIP(me.ipp) && util.isPublicIP(ipp)) return false;
+        if (util.isPublicIP(me.ipp) && util.isPrivateIP(ipp)) return false;
+        return true;
     });
+    
+    // If none are closer (relative to us) .see back only ourselves.
+    var closer = valid.filter(function(ipp){
+        return (endh.distanceTo(network[ipp].hash) < me.hash.distanceTo(endh));
+    });    
+    if(!closer.length) closer = [me.ipp];
+    
     s.send({
-        '.see': healthyNear
+        '.see': closer
     });
 }
 
