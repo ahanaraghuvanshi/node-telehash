@@ -72,6 +72,7 @@ function doListener(name, onConnect) {
 
 function createNewPeer(from) {
     //return an object to use to communicate with the connected peer
+    if(peers[from]) return peers[from];
     var peer = {
         ipp: from,
         send: function (buffer) { //msg should be a Buffer()
@@ -135,7 +136,7 @@ function handleConnect(conn, callback) {
 
     if( conn.message.x != "CONNECT") return;
     
-    //if( peers[conn.message.ipp]) return;//already connected
+    var newpeer;
     
     console.log("Got A CONNECT request from: " + conn.from + " via:" + conn.source);
 
@@ -156,21 +157,24 @@ function handleConnect(conn, callback) {
             conn.reply({status:'OK', ipp:self.me.ipp});
             popf(conn.message.ipp);//pop our firewall
             
-            if (!peers[conn.message.ipp]) {                
-                callback(createNewPeer(conn.message.ipp));
+            if (!peers[conn.message.ipp]) {
+                newpeer=createNewPeer(conn.message.ipp);
+                setTimeout(function(){callback(newpeer);},1000);
             }
             return;
         }else{
             //reverse..we will send a knock
             conn.reply({status:'REVERSE', ip:self.me.ip});
             console.error("CHANNELS: Reversing Connection");
-            //short delay..
+            //short delay..            
             setTimeout(function(){
                 OOBSend(conn.message.ipp, new Buffer('TELEHASH#KNOCK\n'));//todo make the knock a random number
-                if (!peers[conn.message.ipp]) {                
-                    callback(createNewPeer(conn.message.ipp));
-                }
-            },1500);
+                if (!peers[conn.message.ipp]) {
+                    newpeer = createNewPeer(conn.message.ipp);
+                    setTimeout(function(){callback(newpeer);},500);
+                }                
+            },1000);
+            
             return;
         }
     }
