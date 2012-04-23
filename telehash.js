@@ -466,16 +466,12 @@ function doPopTap() {
                 'has': ['+pop']
             }
         });
-        sendTapRequests(true);
-        //send out tap requests as soon as possible after seeding to make sure we capture +pop signals early
+        //sendTapRequests(true);        
     }
 }
 
-function doFarListen(arg, callback) {
+function listenForResponse(arg, callback) {
     if(self.mode == MODE.ANNOUNCER) return;
-    //this is a hack for when we are behind a symmetric NAT we will .tap for our +end near 
-    //the switches we are trying to +connect to. so they can reply back to us through a telex relay using a +response signal
-    //this will be used called by doConnect()
     var end = new hlib.Hash(arg.id); //end we are tapping for
     var hash = new hlib.Hash(arg.connect); //where we will .tap
     var rule = {
@@ -493,8 +489,7 @@ function doFarListen(arg, callback) {
         far: true
     };
     listeners.push(listener);
-    console.log("DOING FAR LISTEN");
-    listenLoop();//kick start far listeners to get our responses from first time.
+    //listenLoop();//kick start far listeners to get our responses from first time.
     return listener;
 }
 
@@ -531,7 +526,7 @@ function listenLoop() {
             });
         });
         
-        //doDial( listener.id ); //<<--not using this so we can support the FarListen.. where listener.end != listener.hash
+        //doDial( listener.id ); //<<--not using this so we can support the listenforrespone.. where listener.end != listener.hash
     });
     sendTapRequests();
 }
@@ -596,16 +591,13 @@ function doConnect(end_name, noResponse) {
             }
     };
 
-    //helper if we are behind symmetric NAT
-    //also needed if both switches behind same NAT but we can't know this at this point so we will do it by default..    
-    //if(self.snat) {
     if(self.mode != MODE.ANNOUNCER && !noResponse ){
-        doFarListen({
+        listenForResponse({
             id: self.me.ipp,
             connect: end_name
         }, undefined);
     }
-    //}
+
     console.error("ADDED CONNECTOR TO: " + end_name);
     connectLoop(); //kick start connector
     
