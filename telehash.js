@@ -658,7 +658,7 @@ function doPing(to){
     doSend(to, {
         '+end': self.me.end,
         '_hop': 0,
-        '.see': self.me.visible ? [self.me.ipp]:[]  //should mark the remote switch that we sent them a .see for ourself so not to repeat it constantly
+        '.see': self.me.visible ? [self.me.ipp] : []
     });
 }
 
@@ -733,7 +733,7 @@ function scan() {
 
     all.forEach(function (s) {
         if (s.self) return;
-        console.error("switch:" + s.ipp + " popped=" + s.popped + " line=" + s.line + " BR=" + s.BR + " BSent=" + s.Bsent + " misses=" + s.misses + " healthy=" + s.healthy());
+        console.error("switch:",s.ipp,"visible:",s.visible,"line:",s.line,"misses:",s.misses,"healthy:",s.healthy());
     });
 
     // if only us or nobody around, and we were seeded at one point, try again!
@@ -745,12 +745,6 @@ function scan() {
         return doSeed(self.onSeeded);//TODO: emit event state changed..
     }
 
-    //ping all...
-    //TODO if they haven't .seen us.. send them a .see along with ping
-    all.forEach(function (s) {
-        if(s.line) doPing(s.ipp);
-    });
-
     //if we lost connection to all initial seeds.. ping them all again?
     var foundSeed = false;
     all.forEach(function (s) {
@@ -760,9 +754,18 @@ function scan() {
         pingSeeds();
     }
 
-    return; //TODO work on buckets...
-    
+/*
+    //ping all...
+    all.forEach(function (s) {
+        if(s.visible) doPing(s.ipp);
+    });
+*/
+    if(!self.mode == MODE.FULL) return;
+        
     // TODO overall, ping first X of each bucket
+    all = all.filter(function(a){
+        return (a.visible && !a.self);
+    });
     all.sort(function (a, b) {
         return self.me.hash.distanceTo(a.hash) - self.me.hash.distanceTo(b.hash);
     });
@@ -774,12 +777,14 @@ function scan() {
     all.forEach(function (s) {
         var d2 = self.me.hash.distanceTo(s.hash);
         if (d2 == distance) {
-            console.log('storing ' + s.ipp + ' in bucket.');
+            console.error('storing ' + s.ipp + ' in bucket',buckets.length,"distance:",distance);
             return bucket.push(s);
         }
-        distance = d2;
-        buckets.push(bucket);
-        bucket = [];
+        buckets.push(bucket);//store bucket
+        
+        distance = d2;        
+        bucket = [s];//put it in next bucket
+        console.error('storing ' + s.ipp + ' in bucket',buckets.length,"distance:",distance);
     });
 
     // TODO for congested buckets have a sort preference towards stable, and have a max cap and drop rest (to help avoid a form of local flooding)
@@ -788,10 +793,9 @@ function scan() {
         bucket.forEach(function (s) {
             if (s.self) return;
             if (Date.now() > (s.ATsent + 30000)) return; // don't need to ping if already sent them something in the last 30sec
-            console.log('pinging ' + s.ipp + " ...");
-            s.send({
-                "+end": self.me.end
-            }); // TODO, best dht mesh balance is probably to generate a random hash this distance away, but greedy +end of us is always smart/safe
+            console.error('pinging ' + s.ipp + " ...");
+            doPing(s.ipp);
+            // TODO, best dht mesh balance is probably to generate a random hash this distance away, but greedy +end of us is always smart/safe
         })
     });
 }
