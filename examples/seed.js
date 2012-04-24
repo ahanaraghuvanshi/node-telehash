@@ -1,5 +1,5 @@
-var telehash = require("./telehash");
-var util = require('./util');
+var telehash = require("telehash");
+var util = require('iputil');
 
 var localip = util.getLocalIP();
 

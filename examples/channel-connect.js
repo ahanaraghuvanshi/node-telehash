@@ -1,4 +1,4 @@
-var channels = require('./channels');
+var channels = require('channels');
 
 var channel_name = "telehash.echo.server";
 

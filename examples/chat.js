@@ -1,4 +1,4 @@
-var telehash = require("./telehash");
+var telehash = require("telehash");
 
 var chatCache = {};
 var connector;

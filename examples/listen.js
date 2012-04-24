@@ -1,8 +1,4 @@
-var telehash = require("./telehash");
-var hlib = require("./hash");
-var util = require("./util");
-
-telehash.init({mode:2});
+var telehash = require("telehash");
 
 telehash.seed(function (err) {
     if (err) {

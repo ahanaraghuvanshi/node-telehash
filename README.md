@@ -17,7 +17,7 @@ Get the code:
     
 Try the chat application. Join the telehash chat lobby:
 
-    cd node-telehash/
+    cd node-telehash/examples/
     node chat @your_nick_name
     
 ## Quick Reference of the API
@@ -29,7 +29,7 @@ Currently the API is simple and has the following basic functions:
 
 ## listen( end_name, callback )
 
-    var telehash = require("./telehash");
+    var telehash = require("telehash");
     telehash.seed( function(err){
         telehash.listen('echo',
             function ( request ) {
@@ -48,7 +48,7 @@ See listen.js for a detailed example.
 
 ## connect(end_name, discardResponse )
 
-    var telehash = require("./telehash");
+    var telehash = require("telehash");
     telehash.seed( function(err){
         var connector = telehash.connect( 'echo' );      
         connector.send( 'TeleHash Rocks!', function(response){
@@ -73,7 +73,7 @@ Using the basic *connect* and *listen* functions a *channels* module is implemen
 
 Here we initialise the channels module and once we are seeded we establish a listener for 'telehash.echo.server'. 
 
-    var channels = require('./channels');
+    var channels = require('channels');
     channels.init({
        ready:function(){
           channels.listen("telehash.echo.server", onConnect );
@@ -94,7 +94,7 @@ The object peer has two methods data and send. The data() function is a callback
 
 To open a channel to a listener listening for 'telehash.echo.server' we use channels.connect():
 
-    var channels = require('./channels');
+    var channels = require('channels');
     channels.init({
        ready:function(){
            channels.connect("telehash.echo.server", onConnect );
@@ -153,7 +153,7 @@ Will send a .tap request to the switches closest to end_name for signals express
     
 Send will send a telex directly to a switch given by it's ip:port.
 
-see the wall.js example for example dial,announce, and tap functions.
+see the wall.js example for example of dial,announce, and tap functions.
 
 ## Notes
 
