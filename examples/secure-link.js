@@ -2,11 +2,11 @@ var fs = require('fs');
 var crypto = require('crypto');
 var dhPrimeHex="";
 
-init();
 exports.incoming = incoming;
 exports.outgoing = outgoing;
 
-function init(privKF, pubKF){
+init();
+function init(){
 
     // http://svn.apache.org/repos/asf/httpd/httpd/trunk/modules/ssl/ssl_engine_dh.c
     var dhPrime = [
@@ -27,12 +27,13 @@ function init(privKF, pubKF){
     }
     dhPrime.forEach(function(b){
         dhPrimeHex+=byte2hex(b);
-    });
+    });    
 }
 
-function generate_secure_link_object(callback,peer,K){
+function generate_secure_link_object(callback,peer,K,remoteID){
 
     var slo = {
+        peerid:remoteID,
         data:function(){},
         send:function(msg){
             peer.send( encryptbuf(msg,K) );
@@ -48,18 +49,19 @@ function generate_secure_link_object(callback,peer,K){
 // will setup a secure channel using DH-STS (http://en.wikipedia.org/wiki/Station-to-Station_protocol)
 // return a secure_peer object by callback with .send() and .data() functions used to communicate securely
 // once the secure link is setup.
-function outgoing(LINK,peer){
+function outgoing(LINK,peer,remoteID){
     console.log("SECURE-LINK: Starting OUTGOING Negotiation");    
     var dh = crypto.createDiffieHellman(dhPrimeHex,'hex');
     var P = dh.generateKeys('base64');
-    var packet1 = {p:P}; 
+    var packet1 = {p:P,id:LINK.self.id};
        
     peer.send( new Buffer(JSON.stringify(packet1)));    
     
     var replyTimeout = setTimeout(function(){
         //no reply packet received..
         console.log("SECURE-LINK: no response to packet 1!");
-        peer.close();
+        peer.data = function(){};        
+        peer.close();        
         LINK.callback({error:'timeout'});
     },8000);
     
@@ -70,11 +72,11 @@ function outgoing(LINK,peer){
             if(packet2.p && packet2.s){
                 //if valid signature compute K and reply with packet 3, else stop (callback null)
                 var K = dh.computeSecret(packet2.p,'base64','binary');
-                var authentic = verify(packet2.p+P, decrypt(packet2.s,K), fs.readFileSync(LINK.peerPublicKey,'ascii'));
+                var authentic = verify(packet2.p+P, decrypt(packet2.s,K), fs.readFileSync(LINK.peers[remoteID].key,'ascii'));
                 if( authentic ){
-                    var packet3 = {s:encrypt(sign(P+packet2.p, fs.readFileSync(LINK.myPrivateKey,'ascii')),K)};
+                    var packet3 = {s:encrypt(sign(P+packet2.p, fs.readFileSync(LINK.self.key,'ascii')),K)};
                     peer.send(new Buffer(JSON.stringify(packet3)));                                        
-                    generate_secure_link_object(LINK.callback,peer,K);
+                    generate_secure_link_object(LINK.callback,peer,K,remoteID);
                     return;                    
                 }else{
                     console.log("SECURE-LINK: SIGNATURE FAILED");
@@ -106,7 +108,8 @@ function incoming(LINK,peer){
     
     var initialPacketTimeout = setTimeout(function(){
         //first packet not received!
-        peer.close();
+        peer.data = function(){};
+        peer.close();        
         LINK.callback({error:'no-init-rcvd'});
     },8000);
     
@@ -115,14 +118,16 @@ function incoming(LINK,peer){
         clearTimeout(initialPacketTimeout);
         try {
             var packet1 = JSON.parse( msg.toString() );
-            if(packet1.p){
+            if(packet1.p && packet1.id){
                 var remoteP = packet1.p;
+                var remoteID = packet1.id;
                 var K = dh.computeSecret(packet1.p,'base64','binary');
-                var packet2 = {s:encrypt(sign(P+packet1.p, fs.readFileSync(LINK.myPrivateKey,'ascii')),K), p:P};
+                var packet2 = {s:encrypt(sign(P+packet1.p, fs.readFileSync(LINK.self.key,'ascii')),K), p:P};
                 peer.send( new Buffer(JSON.stringify(packet2)));
 
                 var replyTimeout = setTimeout(function(){
-                    //no reply packet received..
+                    //no reply packet received..                    
+                    peer.data=function(){};
                     peer.close();
                     LINK.callback({error:'timeout'});
                 },8000);
@@ -132,9 +137,9 @@ function incoming(LINK,peer){
                     try{
                         var packet3 = JSON.parse( msg.toString());
                         if(packet3.s){
-                            var authentic = verify(remoteP+P, decrypt(packet3.s,K), fs.readFileSync(LINK.peerPublicKey,'ascii'));
+                            var authentic = verify(remoteP+P, decrypt(packet3.s,K), fs.readFileSync(LINK.peers[remoteID].key,'ascii'));
                             if(authentic){
-                                generate_secure_link_object(LINK.callback,peer,K);
+                                generate_secure_link_object(LINK.callback,peer,K,remoteID);
                                 return;
                             }else{
                                 console.log("SECURE-LINK: SIGNATURE FAILED");  

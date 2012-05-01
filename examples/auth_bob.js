@@ -1,29 +1,31 @@
 var channels = require('channels');
 var securelink = require('./secure-link');
 
-channels.init({
-    mode:2,
+channels.init({   
     ready: function () {   	
         connect();
     }
 });
 
 var LINK = {
-    myName: "@bob",
-    myPrivateKey:"keys/bob.pri.pem",
-    peerName:"@alice",
-    peerPublicKey:"keys/alice.pub.pem",
+    self:{
+        id:"@bob",
+        key:"keys/bob.pri.pem"
+    },
+    peers:{},
     callback:onConnected
 }
 
+LINK.peers["@bob"]={key:"keys/bob.pub.pem"};
+LINK.peers["@alice"]={key:"keys/alice.pub.pem"};
+
 function connect() {
-    
-    channels.listen(LINK.myName, function(peer){
+    channels.listen(LINK.self.id, function(peer){
         securelink.incoming(LINK,peer);
     });
     
-    channels.connect(LINK.peerName, function(peer){
-        securelink.outgoing(LINK,peer);
+    channels.connect("@alice", function(peer){
+        securelink.outgoing(LINK,peer,"@alice");
     });
 }
 
@@ -31,8 +33,8 @@ function connect() {
 function onConnected( obj ){
     if(obj.error) {console.log(obj.error); return;}
     
-    //if we reached here we have a secure link, slink with @bob
-    obj.link.send(new Buffer("Hi Alice, I'm Bob!"));
+    //if we reached here we have a secure link
+    obj.link.send(new Buffer("Hi "+obj.link.peerid+", I'm "+LINK.self.id+"!"));
     obj.link.data=function( msg ){
         console.log( "<<secure message>>",msg.toString() );
     }  
