@@ -1,34 +1,11 @@
 var fs = require('fs');
 var crypto = require('crypto');
-var dhPrimeHex="";
+
+var dhPrimeHex_4096='ba4189c9e62c9d2334ff536057ee226ab08666c40b78c359c0f74d968eda119ff0b71f7c271fe7d6fc31a5c478816898e1cb45814e7d522ef5cc976452626a713d029539a7b658e2b6efadfb7345b5c22f679ab72537fd5ea4ac9994dbf453697a21aee1f70744f6f1274cdcece2cb38b69ed1c604cb1513b70e4698642e727f90b1f0ae8a9c4a4d8751aef7eee8da35d2f75f6cf8ecdb3e7aa9257708d7f7264b3896837efdaaf64a251aec303e0f57032f2ba233cae77deb7ade0795c981d982a36eb073a0528c2fc1c666759a273eac5d1c4eec4240abc187df2329277d787fb12d068f2e87451eeaf4dd83c2c3e120be3e54f2ed8426dc1fddd3009be5e64a6ccca5a0c6c8394ca2c57f578abc36bf00a9ad82586ee98567938f1862c38a939e5005a4e6d69dd19bcecde98aea328c965ffff5341246bb83c0846db9e8806420aac7880f0d961149e430316e17ec1131bbc71c856430da1fb46769bfc5a00be1bcc1f902a748b91d8c8174022138bd4d42baaef4f588feb3e4c04c71fd68d07c1bd2a122840f2704477c4cffd160133a41b4f93a7bcc8aa1f9995bfac4449bbd1b715ebe37eb85f3374ce5f4a390e9bf650e26f6323e97b72dcf49ccf1be38d494683943222d6ef334ed672bb1bb58ce5f5ba2d687c25336961d38376b2b32b79d2b2a6b56158c9df5a728865c8d3008a8c58d7fa239aac66ac876698733';
 
 exports.incoming = incoming;
 exports.outgoing = outgoing;
 
-init();
-function init(){
-
-    // http://svn.apache.org/repos/asf/httpd/httpd/trunk/modules/ssl/ssl_engine_dh.c
-    var dhPrime = [
-        0xD6, 0x7D, 0xE4, 0x40, 0xCB, 0xBB, 0xDC, 0x19, 0x36, 0xD6, 0x93, 0xD3,
-        0x4A, 0xFD, 0x0A, 0xD5, 0x0C, 0x84, 0xD2, 0x39, 0xA4, 0x5F, 0x52, 0x0B,
-        0xB8, 0x81, 0x74, 0xCB, 0x98, 0xBC, 0xE9, 0x51, 0x84, 0x9F, 0x91, 0x2E,
-        0x63, 0x9C, 0x72, 0xFB, 0x13, 0xB4, 0xB4, 0xD7, 0x17, 0x7E, 0x16, 0xD5,
-        0x5A, 0xC1, 0x79, 0xBA, 0x42, 0x0B, 0x2A, 0x29, 0xFE, 0x32, 0x4A, 0x46,
-        0x7A, 0x63, 0x5E, 0x81, 0xFF, 0x59, 0x01, 0x37, 0x7B, 0xED, 0xDC, 0xFD,
-        0x33, 0x16, 0x8A, 0x46, 0x1A, 0xAD, 0x3B, 0x72, 0xDA, 0xE8, 0x86, 0x00,
-        0x78, 0x04, 0x5B, 0x07, 0xA7, 0xDB, 0xCA, 0x78, 0x74, 0x08, 0x7D, 0x15,
-        0x10, 0xEA, 0x9F, 0xCC, 0x9D, 0xDD, 0x33, 0x05, 0x07, 0xDD, 0x62, 0xDB,
-        0x88, 0xAE, 0xAA, 0x74, 0x7D, 0xE0, 0xF4, 0xD6, 0xE2, 0xBD, 0x68, 0xB0,
-        0xE7, 0x39, 0x3E, 0x0F, 0x24, 0x21, 0x8E, 0xB3
-    ];
-    function byte2hex(d) {
-        return d < 16 ? "0" + d.toString(16) : d.toString(16);
-    }
-    dhPrime.forEach(function(b){
-        dhPrimeHex+=byte2hex(b);
-    });    
-}
 
 function generate_secure_link_object(callback,peer,K,remoteID){
 
@@ -51,7 +28,7 @@ function generate_secure_link_object(callback,peer,K,remoteID){
 // once the secure link is setup.
 function outgoing(LINK,peer,remoteID){
     console.log("SECURE-LINK: Starting OUTGOING Negotiation");    
-    var dh = crypto.createDiffieHellman(dhPrimeHex,'hex');
+    var dh = crypto.createDiffieHellman(dhPrimeHex_4096,'hex');
     var P = dh.generateKeys('base64');
     var packet1 = {p:P,id:LINK.self.id};
        
@@ -102,7 +79,7 @@ function incoming(LINK,peer){
     //wait for packet 1
     //send response packet 2
     //wait for reply packet 3
-    var dh = crypto.createDiffieHellman(dhPrimeHex,'hex');
+    var dh = crypto.createDiffieHellman(dhPrimeHex_4096,'hex');
     var P = dh.generateKeys('base64');
     
     
