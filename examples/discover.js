@@ -1,4 +1,4 @@
-var telehash = require("./telehash");
+var telehash = require("telehash");
 
 telehash.init({mode:3});//full switch mode
 
