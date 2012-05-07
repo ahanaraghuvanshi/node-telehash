@@ -1,3 +1,26 @@
+/*
+
+    This module tries to establish a secure/encrypted channel ontop of an existing 'channel'
+    
+    The channel is passed as an object with two properties, .send and .data
+        channel.send = function(Buffer)     //the send property should be a function used to send data on the channel as a node 'Buffer' type.
+        channel.data = function(Buffer)     //the data property is a callback function which is called by the underlying channel when data is recevied.
+        
+    One end of the channel must begin an 'outgoing' negotiation and the other end must wait for and 'incoming' packet to begin the secure link negotitaiton.
+    The protocol is an implementation of Authenticated Diffie-Hellman Station-to-Station Key Exchange protocol: http://en.wikipedia.org/wiki/Station-to-Station_protocol    
+    This will authenticate both ends of the channel, establish a session key for AES256 encryption, and provide an object used to transparently encrypt/decrypt data
+    sent and received between the two ends. (all crypto is handled by nodejs crypto lib which uses the underlying openssl libraries)
+
+    Assumption: Both parties have previously exchanged their RSA public keys "securely".(otherwise protocol is prone to identity-misbinding attack)
+    http://webee.technion.ac.il/~hugo/sigma-pdf.pdf (page 11)
+
+    The protocol provides: forward secrecy and authentication
+    The protocol does NOT provide: identity protection
+    
+    note:In the example provided the RSA keys are 2048-bit in length (to keep exchanged UDP packet sizes below a 1400 limit)
+    
+*/
+
 var fs = require('fs');
 var crypto = require('crypto');
 
@@ -23,9 +46,8 @@ function generate_secure_link_object(callback,peer,K,remoteID){
     callback({link:slo});
 }
 // takes a peer object with .send() and .data() methods used to communicate on a channel.
-// will setup a secure channel using DH-STS (http://en.wikipedia.org/wiki/Station-to-Station_protocol)
-// return a secure_peer object by callback with .send() and .data() functions used to communicate securely
-// once the secure link is setup.
+// the LINK parameter is a store of public and private keys associated with us and our peers, and the callback for returning the slo (secure link object)
+// callsback LINK.callback( secure_link_object )
 function outgoing(LINK,peer,remoteID){
     console.log("SECURE-LINK: Starting OUTGOING Negotiation");    
     var dh = crypto.createDiffieHellman(dhPrimeHex_4096,'hex');
@@ -144,7 +166,7 @@ function incoming(LINK,peer){
     };
 }
 
-
+//TODO: derive differnt keys for encryptbuf() and encrypt() - We are violating the basic cryptographic principle of key separation!
 function encryptbuf(buf,key){
     var c = crypto.createCipher('AES256', key);
     var output = c.update(buf)+c.final();
