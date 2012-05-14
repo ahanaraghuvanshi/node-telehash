@@ -44,6 +44,7 @@ This will seed you into the DHT and actively wait for any connect requests sent 
     request.reply( {...} );//the reply can be a string or JSON object.
 
 The request object will have the follwing form:
+
     {
         guid:   (the +connect signal from underlying telex),
         message:(the +message signal from underlying telex),
