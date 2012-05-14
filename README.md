@@ -43,10 +43,18 @@ This will seed you into the DHT and actively wait for any connect requests sent 
 
     request.reply( {...} );//the reply can be a string or JSON object.
 
+The request object will have the follwing form:
+    {
+        guid:   (the +connect signal from underlying telex),
+        message:(the +message signal from underlying telex),
+        from:   (the +from signal from underlying telex),
+        source: (the ip:port of the relaying switch), 
+        reply:  (a method for replying to the sender of the telex, takes a message parameter)
+    }
 
 See listen.js for a detailed example.
 
-## connect(end_name, discardResponse )
+## connect(end_name, [discardResponse] )
 
     var telehash = require("telehash");
     telehash.seed( function(err){
@@ -58,10 +66,18 @@ See listen.js for a detailed example.
 
 The connect() function will return a connector object. In the background the connector will use the DHT to find anyone listening for the end_name 'echo'. Using the connector's send function we can then send actual messages (as a sting or JSON object) to the listeners. Replies will fire the callback function, with a response object. (discardResponse is optional parameter to indicate if we want to discard all responses. defaults to false)
 
-## connector.send( {...}, callback, timeout_s )
+## connector.send( {...}, [callback, timeout_s] )
 
-The send function takes optional callback function and timeout parameters. Responses must arrive within the timeout_s (seconds) period or they will get discarded. The callback will always be fired after the timeout period expires with an empty (undefined) reponse object.
+The send function takes optional callback function and timeout parameters. Responses must arrive within the specified timeout_s (seconds) (or default 10 seconds) period or they will get discarded. The callback will always be fired after timeout period expires with an empty (undefined) reponse object.
 
+The response object will have the following form:
+
+    {
+        from:   (ip:port of the relaying switch),
+        message:(the +message signal in the underlying telex),
+        count:  (total reponses recived so far)
+    }
+    
 See connect.js for a detailed example.
 
 ## Channels Module: built using connect() and listen() functions
@@ -80,7 +96,7 @@ Here we initialise the channels module and once we are seeded we establish a lis
        }		
     });
 
-OnConnect(peer) will be called when a channel is sucessfully opened with a new 'peer'.
+onConnect(peer) will be called when a channel is sucessfully opened with a new 'peer'.
 
     function onConnect( peer ){
        peer.data = function(msg){
@@ -111,12 +127,12 @@ To open a channel to a listener listening for 'telehash.echo.server' we use chan
     }
 
 Once the channel is open you could build anything ontop of it: establishing voice/video streams, exchanging files, sending emails.. anything really.
-It is upto you however to implement peer trust/authentication etc. (anyone can listen for any end/hash), and a realiable UDP transport mechanism (if required).
+It is upto you however to implement peer trust/authentication and a realiable UDP transport mechanism (if required).
 
 see the channel-listen.js and channel-connect.js for simple examples.
 see alice.js and bob.js for more advanced example which illustrates the behaviour of channels better.
 
-Channels can only be established under certain conditions related to the type of NAT a peer is operating behind of:
+Channels can only be established under certain conditions related to the type of NAT a peer/switch is operating behind of:
 
     Switch A        Switch B        Channel can be established?
     NAT             NAT             YES //but must not be behind the same NAT
@@ -165,10 +181,10 @@ The code produces alot of debug output so I suggest you redirect the stderr to /
 
 
 ## Refrence
-    TeleHash.Org: http://telehash.org/
-    official TeleHash github repo: https://github.com/quartzjer/TeleHash
-    Locker Project: https://github.com/LockerProject/Locker
-    NATs: http://en.wikipedia.org/wiki/Network_address_translation
-    Kademlia: http://en.wikipedia.org/wiki/Kademlia
+    TeleHash.Org http://telehash.org/
+    official TeleHash github repo https://github.com/quartzjer/TeleHash
+    Locker Project https://github.com/LockerProject/Locker
+    NATs http://en.wikipedia.org/wiki/Network_address_translation
+    Kademlia http://en.wikipedia.org/wiki/Kademlia
 
 
