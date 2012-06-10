@@ -1,0 +1,2 @@
+alice	bob@telechat.org	telechat	3ae8a86c1de52403a41e83e9402dd3a99e33ca52	smp
+alice	bob@telechat.org	telechat	f5cec0eef5253fc3398d0a666e0123a07efec5bd	smp
