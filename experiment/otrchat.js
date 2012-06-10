@@ -58,7 +58,7 @@ var remote_party = self.makeOTRChannel(local_id+"@telechat.org","telechat",remot
                     shutdown();    
             },
             onInsecure:function(ctx){
-
+                console.log("!!! Insecure Connection !!!");
             },
             onSMPComplete:function(ctx){
                 console.log("SMP Complete :)");
@@ -78,16 +78,19 @@ var remote_party = self.makeOTRChannel(local_id+"@telechat.org","telechat",remot
 stdin.on('data', function(chunk){
         if(chunk.length > 1 ){
             if(connector) {
-                if(chunk=="!initsmp!\n"){
+                if(chunk=="!smp!\n"){
                         remote_party.initSMP();
                         return;
                  }
                  if(chunk=="?trust?\n"){
                         console.log("trust=",remote_party.trust);
                         return;
-                  }
+                 }
+                if(chunk=="?encrypted?\n"){
+                        console.log("channel is",(remote_party.msgstate==1)?"encrypted":"not encrypted!");
+                        return;
+                 }
                remote_party.send(chunk);
-
             }
         }
 });
@@ -117,7 +120,7 @@ function chat(me,friend) {
 }
 var initInterval = setInterval(function(){
     if(remote_party.msgstate!=1) {
-        remote_party.send("?OTRv2?");           
+        remote_party.connect();
         return;
     }
     clearInterval(initInterval);

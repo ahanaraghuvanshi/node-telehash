@@ -40,7 +40,7 @@ function init(user){
         var ctx = getConnCtx( user, accountname, protocol, remote_party );        
         ctx.callbacks = callbacks;
         ctx.connect = function(){
-            ctx.send("");
+            ctx.send("?OTRv2?");
         };
         ctx.send = function(message){
             return SendMessage(user, ctx, message);
