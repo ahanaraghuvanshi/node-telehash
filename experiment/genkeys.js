@@ -3,7 +3,8 @@ console.log("libotr version:",otr.version());
 
 var users = {
     alice: new otr.User(),
-    bob: new otr.User()
+    bob: new otr.User(),
+    eve: new otr.User()
 };
 
 users.alice.conf ={
@@ -20,6 +21,14 @@ users.bob.conf={
     proto: "telechat"    
 };
 
+//malicious user
+users.eve.conf={
+    keys: "./keys/eve.keys",
+    fingerprints: "./keys/eve.fp",
+    account: "alice@telechat.org",
+    proto: "telechat"
+};
+
 function genKey(user,cb){
     var conf = user.conf;
     console.log("Generating OTR key for:", conf.proto+":"+conf.account);
@@ -32,7 +41,11 @@ function genKey(user,cb){
         if(cb) cb(user);
     });
 }
+
+genKey(users.eve);
+
+/*
 genKey(users.alice, function(){
 	genKey(users.bob);
 });
-
+*/

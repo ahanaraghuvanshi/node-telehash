@@ -5,6 +5,7 @@ var chatCache = {};
 var connector;
 var local_id = "alice";
 var remote_id = "bob";
+var self;
 
 var ALLOW_NEW_RELATIONSHIPS = true;
 
@@ -24,17 +25,29 @@ if( !process.argv[2] && !process.argv[3]) {
 local_id = process.argv[2];
 remote_id = process.argv[3];
 
-var self = otrchan.makeUser({
+//malicious user eve.. trying to impersonate alice
+if(local_id == "eve"){
+self = otrchan.makeUser({
+    keys: "./keys/eve.keys",
+    fingerprints: "./keys/eve.fp",
+    name: "alice"
+});
+local_id ="alice";
+
+}else{
+self = otrchan.makeUser({
     keys: "./keys/"+local_id+".keys",
     fingerprints: "./keys/"+local_id+".fp",
     name: local_id
 });
 
+}
 var remote_party = self.makeOTRChannel(local_id+"@telechat.org","telechat",remote_id,{
             onInject: function(msg){
                 if(connector) connector.send({txt:msg});                
             },
             onGetSecret:function(question){
+                if(self.conf.keys=="./keys/eve.keys") return "EVE_DOESNT_KNOW_THE_SECRET";
                 return "SECRET";
             },
             onNewFingerpint:function(ctx){
@@ -112,7 +125,11 @@ function chat(me,friend) {
         if(!chatCache[msg_sig]){
             chatCache[msg_sig] = true;
             //console.log("RAW: <<-",MSG.message.txt);
-            remote_party.recv(MSG.message.txt);
+            
+            
+            if(Math.random()*100 > 25 ){ //simulate 25% packet loss
+                remote_party.recv(MSG.message.txt);
+            }
         }
     });
     
