@@ -6,7 +6,7 @@ if(process.argv[2]) channel_name = process.argv[2];
 var port = process.argv[3] ? process.argv[3] : 0;
 
 channels.init({
-    seeds:['192.168.42.157:42424'],
+//    seeds:['192.168.42.157:42424'],
     port:port,    
     ready: function () { //will be called when we are seeded    	
         connect();

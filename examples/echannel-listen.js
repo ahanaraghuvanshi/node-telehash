@@ -5,7 +5,7 @@ var channel_name = "telehash.echo.server";
 if(process.argv[2]) channel_name = process.argv[2];
 
 channels.init({
-    seeds:['192.168.42.157:42424'], 
+//    seeds:['192.168.42.157:42424'], 
     ready: function () { //called when we are seeded
         server();
     }
