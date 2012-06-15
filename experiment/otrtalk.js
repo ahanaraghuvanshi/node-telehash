@@ -90,7 +90,7 @@ stdin.on('data', function(chunk){
                         console.log("channel is",(remote_party.msgstate==1)?"encrypted":"not encrypted!");
                         return;
                  }
-               if(remote_party.msgstate == 1 && remote_partry.trust=="smp") remote_party.send(chunk);
+               if(remote_party.msgstate == 1 && remote_party.trust=="smp") remote_party.send(chunk);
             }
         }
 });
