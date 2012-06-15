@@ -1,4 +1,4 @@
-var channels = require('channels');
+var channels = require('echannels');
 var securelink = require('./secure-link');
 
 channels.init({   
