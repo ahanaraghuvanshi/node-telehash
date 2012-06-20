@@ -5,9 +5,6 @@ var local_id = "alice";
 var remote_id = "bob";
 var self,remote,otrchan,echannel;
 
-
-var ALLOW_NEW_RELATIONSHIPS = true;
-
 var stdin = process.openStdin();
 stdin.setEncoding("UTF-8");
 
@@ -31,12 +28,13 @@ otrchan = new libotr.OTRChannel(self, remote, {
     policy:59,
     MTU:1450,
     secret:"SECRET",
-    secrets:{'question-1':'secret-1','question-2':'secret-2'}
+    secrets:{'question-1':'secret-1','question-2':'secret-2'},
+    accept_unknown_peers:true
 });
 
 otrchan.on("shutdown",function(){
-    console.log("Shutting down Socket");
-    if(echannel) echannel.close();
+    //console.log("Shutting down Socket");
+    //if(echannel) echannel.close();
 });
 otrchan.on("inject_message",function(msg){
     if(echannel) echannel.send( new Buffer(msg) );
@@ -46,40 +44,45 @@ otrchan.on("message",function(msg){
     if(this.isAuthenticated()) console.log("<< ",msg);
     else console.log("ignoring: <<",msg);
 });
-otrchan.on("create_privkey",function(){
-    console.log("No Private Key found for:",this.context.accountname);
-});
+
 otrchan.on("display_otr_message",function(msg){
-    console.log("[OTR]",msg);
+    console.error("[OTR]",msg);
 });
 otrchan.on("log_message",function(msg){
-    console.log("[LOG]",msg);
+    console.error("[LOG]",msg);
 });
 otrchan.on("new_fingerprint",function(fp){
     console.log(this.context.username,"'s New Fingerprint:",fp);
-    if(ALLOW_NEW_RELATIONSHIPS) return;
+    if(this.parameters.accept_unknown_peers) return;
     console.log("No New Peers Accepted.. Aborting.");
     this.close();
 });
 otrchan.on("gone_secure",function(){
     console.log("Connection Encrypted.");
-    if(this.context.trust!="smp" && ALLOW_NEW_RELATIONSHIPS ){
+    if(!this.isAuthenticated() && this.parameters.accept_unknown_peers ){
         if(echannel.initiator){
             console.log("Authenticating...");                     
-            this.start_smp_question('question-2'); //if we want to establish new trust relationship
-        }else console.log("Awaiting Peer to begin Authentication..");
+            try{
+                this.start_smp_question('question-1'); //if we want to establish new trust relationship
+            }catch(e){
+                console.error(e);
+            }
+        }
     }else {
-        if(this.context.trust!="smp"){
+        if(!this.isAuthenticated()){
             console.log("Only Previously Authenticated Peers Allowed! Abandoning Session");
             this.close();            
             return;
         }
-        console.log("Peer Authenticated [In Previous Session]");
+        console.log("Peer Authenticated [Previously Known]");
     }
+});
+otrchan.on("still_secure",function(){
+    console.log("Secure Connection Re-Established");
 });
 otrchan.on("remote_disconnected",function(){
     console.log("Remote Peer Disconnected. Ending Session.");
-    this.close();
+    shutdown();
 });
 
 otrchan.on("gone_insecure",function(){
@@ -91,22 +94,25 @@ otrchan.on("smp_request",function(question){
     console.log("Responding to SMP Authentication");
     if(question){
       console.log("Question=",question);
-      this.respond_smp(this.parameters.secrets[question]);
+      if(this.parameters && this.parameters.secrets && this.parameters.secrets[question]){
+          this.respond_smp(this.parameters.secrets[question]);
+      }else{
+          console.log("We don't have secret to match the incoming Question challenge");
+          this.close();
+      }
     }else{
       this.respond_smp();
     }
 });
 
 otrchan.on("smp_complete",function(){
-    console.log("SMP_COMPLETE");
+    //console.log("SMP_COMPLETE");
     if(this.context.trust=="smp") {
-        //if we initiated the smp authentication we get here..
+        //we initiated the smp authentication and smp completed successfully
         console.log("Peer Authenticated.");
     }else{
-        //if we were only responding.. we get here..
-        //console.log("Peer Authentication Failed!");
-        //this.close();
-        console.log("Initiating SMP");
+        //remote end initiated smp authentication.. it successeded now its our turn..
+        console.log("Authenticating..."); 
         this.start_smp();
     }    
 });
@@ -116,19 +122,10 @@ otrchan.on("smp_failed",function(){
     this.close();
 });
 
-otrchan.on("smp_aborted",function(){    
-    console.log("SMP_ABORTED");
-    this.close();
+otrchan.on("smp_aborted",function(){
+    //this generally happens if both ends try to init smp at same time..    
+    console.error("SMP_ABORTED");
     return;
-    /*
-    var chan=this;    
-    setTimeout(function(){
-        if(chan.context.trust!="smp") {
-            console.log("Authenticaing.. (retry)");
-            chan.start_smp_question('question-1');
-        }
-    },Math.random()*8000);
-    */
 });
 
 stdin.on('data', function(chunk){
@@ -207,6 +204,7 @@ stdin.on('end', shutdown );
 
 function shutdown(){
     if(this.exiting) return;
+    console.log("Shuting Down");
     this.exiting = true;    
     otrchan.close();
     setTimeout(function(){        
