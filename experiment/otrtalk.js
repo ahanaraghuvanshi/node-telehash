@@ -3,7 +3,9 @@ var libotr = require("otr");
 
 var local_id = "alice";
 var remote_id = "bob";
-var self,remote,otrchan,echannel;
+var self,remote,otrchan;
+
+var echannel;  //active echannel
 
 var stdin = process.openStdin();
 stdin.setEncoding("UTF-8");
@@ -33,11 +35,14 @@ otrchan = new libotr.OTRChannel(self, remote, {
 });
 
 otrchan.on("shutdown",function(){
-    //console.log("Shutting down Socket");
     //if(echannel) echannel.close();
 });
 otrchan.on("inject_message",function(msg){
-    if(echannel) echannel.send( new Buffer(msg) );
+    if(echannel) try{
+        echannel.send( new Buffer(msg) );
+    }catch(e){
+        console.log(e);
+    }
 });
 
 otrchan.on("message",function(msg){
@@ -79,10 +84,11 @@ otrchan.on("gone_secure",function(){
 });
 otrchan.on("still_secure",function(){
     console.log("Secure Connection Re-Established");
+    //TODO redo authentication..if necessary.. (same as gone_secure);
 });
 otrchan.on("remote_disconnected",function(){
     console.log("Remote Peer Disconnected. Ending Session.");
-    shutdown();
+    if(echannel) echannel.close();
 });
 
 otrchan.on("gone_insecure",function(){
@@ -125,7 +131,7 @@ otrchan.on("smp_failed",function(){
 otrchan.on("smp_aborted",function(){
     //this generally happens if both ends try to init smp at same time..    
     console.error("SMP_ABORTED");
-    return;
+    this.close();
 });
 
 stdin.on('data', function(chunk){
@@ -148,7 +154,10 @@ stdin.on('data', function(chunk){
                         console.log("channel is",(otrchan.isEncrypted())?"encrypted":"not encrypted!");
                         return;
                  }
-               if(otrchan.isEncrypted() && otrchan.isAuthenticated()) otrchan.send(chunk);
+               if(otrchan.isEncrypted() && otrchan.isAuthenticated()) {
+                    console.log("sending...chunk:",chunk);
+                    otrchan.send(chunk);
+                }
             }
         }
 });
@@ -170,26 +179,26 @@ function connect() {
 
 function onConnect(peer, User ) {
 
-    //TODO QUE Incoming Connections... try and establish a secure otr link with each until successful. drop remaining in que
-    //when we have an active otr link ignore all other incoming responses
- 
-    if(otrchan.isEncrypted()) {
-        //dont accept connections if we have an active session
+    if(echannel){
+        //TODO instead of closing peer.. Que it..
         peer.close();
         return;
     }
     
     echannel = peer;
     
+    if(User == remote_id ) echannel.initiator = true;
+    
     echannel.data = function (msg) {
         otrchan.recv(msg);
     }
 
-    echannel.disconnected = function(){        
-    }
+    echannel.disconnected = function(){
+        console.log("Channel Disconnected");
+        //otrchan.reset();
+        echannel = undefined;
+    }      
     
-    console.log("PEER CONNECTED");
-    if(User == remote_id ) echannel.initiator = true;
     otrchan.connect();
 }
 
@@ -207,6 +216,7 @@ function shutdown(){
     console.log("Shuting Down");
     this.exiting = true;    
     otrchan.close();
+    //if(echannel) echannel.close();
     setTimeout(function(){        
         channels.shutdown();
         process.exit(0);
