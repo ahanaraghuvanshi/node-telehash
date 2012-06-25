@@ -164,7 +164,6 @@ stdin.on('data', function(chunk){
 
 
 channels.init({
-    seeds: ["172.16.200.253:42424"],
     mode:2,
     ready: function () { //will be called when we are seeded    	
         connect();
