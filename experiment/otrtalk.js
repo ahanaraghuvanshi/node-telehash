@@ -1,4 +1,5 @@
 var channels = require('echannels');
+//var channels = require('channels');
 var libotr = require("otr");
 var async = require("async");
 
@@ -20,13 +21,16 @@ if( process.argv.length < 4) {
     console.log("Usage: node otrtalk.js local_id remote_id\n");
     process.exit();
 }
+
 local_id = process.argv[2];
 remote_id = process.argv[3];
 
 //todo check that userstate loaded successfully...
 self = new libotr.User({name:local_id,keys:'./keys/'+local_id+'.keys',fingerprints:'./keys/'+local_id+'.fp'});
+
 //check if there is a private key for account specified...
 remote = self.ConnContext(local_id+"@telechat.org","telechat",remote_id);
+
 otrchan = new libotr.OTRChannel(self, remote, {
     policy:59,
     MTU:1450,
@@ -66,7 +70,7 @@ otrchan.on("new_fingerprint",function(fp){
     this.close();
 });
 otrchan.on("gone_secure",function(){
-    console.log("OTRTalk Cahnnel Open. [Encrypted].");
+    console.log("OTRTalk Channel Open. [Encrypted].");
     
     if(!this.isAuthenticated() && this.parameters.accept_unknown_peers ){
         if(echannel.initiator){
@@ -118,7 +122,6 @@ otrchan.on("gone_insecure",function(){
 });
 
 otrchan.on("smp_request",function(question){
-
     console.log("Responding to SMP Authentication");
     if(question){
       console.error("Question=",question);
@@ -153,9 +156,11 @@ otrchan.on("smp_aborted",function(){
     console.error("SMP_ABORTED");
     this.close();
 });
+
 otrchan.on("create_privkey",function(){
     console.log("We do not have a private key for the account.");
 });
+
 stdin.on('data', function(chunk){
         if(chunk.length > 1 ){
             if(echannel) {
@@ -163,23 +168,23 @@ stdin.on('data', function(chunk){
                         console.log("Establishing Encrypted Channel");
                         otrchan.connect();
                         return;
-                 }
+                }
                 if(chunk=="!smp!\n"){
                         otrchan.start_smp();
                         return;
-                 }
-                 if(chunk=="?trust?\n"){
+                }
+                if(chunk=="?trust?\n"){
                         console.log("trust=",otrchan.context.trust);
                         return;
-                 }
+                }
                 if(chunk=="?encrypted?\n"){
                         console.log("channel is",(otrchan.isEncrypted())?"encrypted":"not encrypted!");
                         return;
-                 }
-               if(otrchan.isEncrypted() && otrchan.isAuthenticated()) {
-                    console.error("sending...:",chunk);
-                    otrchan.send(chunk);
-               }
+                }
+                if(otrchan.isEncrypted() && otrchan.isAuthenticated()) {
+                    //console.error("sending...:",chunk);
+                    otrchan.send(chunk.replace('\n',''));
+                }
             }
         }
 });
@@ -218,19 +223,12 @@ function onConnect(peer, User ) {
     echannel.disconnected = function(){
         console.log("OTRTalk Channel Closed.");
         //otrchan.reset();  ??
+        if(echannel.queue) delete echannel.queue;
         echannel = undefined;
     }      
 
     console.log("OTRTalk Channel Opening.. :",otrchan.connect());
 }
-
-/*
-var interval = setInterval(function(){
-    if(echannel) {
-     if(otrchan.isEncrypted() && otrchan.isAuthenticated()) otrchan.send("TEST");        
-    }
-},300);
-*/
 
 //cant catch SIGINT signals on windows!
 if(process.platform!='win32'){
@@ -244,7 +242,7 @@ function shutdown(){
     if(this.exiting) return;
     console.log("Shuting Down...");
     this.exiting = true;    
-    otrchan.close();    
+    otrchan.close();
     setTimeout(function(){        
         if(channels.shutdown) channels.shutdown();
         process.exit(0);
