@@ -1,5 +1,6 @@
 var channels = require('echannels');
 var libotr = require("otr");
+var async = require("async");
 
 var local_id = "alice";
 var remote_id = "bob";
@@ -37,14 +38,16 @@ otrchan = new libotr.OTRChannel(self, remote, {
 otrchan.on("shutdown",function(){
     //if(echannel) echannel.close();
 });
+function inject_worker(buffer,callback){
+	if(echannel) echannel.send( buffer );
+	callback();
+}
 otrchan.on("inject_message",function(msg){
-    if(echannel) try{
-        echannel.send( new Buffer(msg) );
-    }catch(e){
-        console.log(e);
-    }
+	if(echannel){
+		if(!echannel.queue) echannel.queue = async.queue(inject_worker,1);
+		echannel.queue.push(new Buffer(msg));
+	}
 });
-
 otrchan.on("message",function(msg){
     if(this.isAuthenticated()) console.log("<< ",msg);
     else console.log("ignoring: <<",msg);
@@ -63,7 +66,29 @@ otrchan.on("new_fingerprint",function(fp){
     this.close();
 });
 otrchan.on("gone_secure",function(){
-    console.log("Connection Encrypted.");
+    console.log("OTRTalk Cahnnel Open. [Encrypted].");
+    
+    if(!this.isAuthenticated() && this.parameters.accept_unknown_peers ){
+        if(echannel.initiator){
+            console.log("Authenticating...");                     
+            try{
+                this.start_smp_question('question-2'); //if we want to establish new trust relationship
+            }catch(e){
+                console.error(e);
+            }
+        }
+    }else {
+        if(!this.isAuthenticated()){
+            console.log("Only Previously Authenticated Peers Allowed! Abandoning Session");
+            this.close();            
+            return;
+        }
+        console.log("Peer Authenticated [Previously Known]");
+    }
+    
+});
+otrchan.on("still_secure",function(){
+    console.log("Secure Connection Re-Established");
     if(!this.isAuthenticated() && this.parameters.accept_unknown_peers ){
         if(echannel.initiator){
             console.log("Authenticating...");                     
@@ -82,10 +107,6 @@ otrchan.on("gone_secure",function(){
         console.log("Peer Authenticated [Previously Known]");
     }
 });
-otrchan.on("still_secure",function(){
-    console.log("Secure Connection Re-Established");
-    //TODO redo authentication..if necessary.. (same as gone_secure);
-});
 otrchan.on("remote_disconnected",function(){
     console.log("Remote Peer Disconnected. Ending Session.");
     if(echannel) echannel.close();
@@ -97,9 +118,10 @@ otrchan.on("gone_insecure",function(){
 });
 
 otrchan.on("smp_request",function(question){
+
     console.log("Responding to SMP Authentication");
     if(question){
-      console.log("Question=",question);
+      console.error("Question=",question);
       if(this.parameters && this.parameters.secrets && this.parameters.secrets[question]){
           this.respond_smp(this.parameters.secrets[question]);
       }else{
@@ -109,18 +131,16 @@ otrchan.on("smp_request",function(question){
     }else{
       this.respond_smp();
     }
+
 });
 
 otrchan.on("smp_complete",function(){
-    //console.log("SMP_COMPLETE");
     if(this.context.trust=="smp") {
-        //we initiated the smp authentication and smp completed successfully
+        //smp completed successfully
         console.log("Peer Authenticated.");
     }else{
-        //remote end initiated smp authentication.. it successeded now its our turn..
-        console.log("Authenticating..."); 
-        this.start_smp();
-    }    
+        this.start_smp();    
+    }
 });
 
 otrchan.on("smp_failed",function(){
@@ -133,7 +153,9 @@ otrchan.on("smp_aborted",function(){
     console.error("SMP_ABORTED");
     this.close();
 });
-
+otrchan.on("create_privkey",function(){
+    console.log("We do not have a private key for the account.");
+});
 stdin.on('data', function(chunk){
         if(chunk.length > 1 ){
             if(echannel) {
@@ -155,9 +177,9 @@ stdin.on('data', function(chunk){
                         return;
                  }
                if(otrchan.isEncrypted() && otrchan.isAuthenticated()) {
-                    console.log("sending...chunk:",chunk);
+                    console.error("sending...:",chunk);
                     otrchan.send(chunk);
-                }
+               }
             }
         }
 });
@@ -180,6 +202,7 @@ function onConnect(peer, User ) {
 
     if(echannel){
         //TODO instead of closing peer.. Que it..
+        console.error("Rejecting Peer");
         peer.close();
         return;
     }
@@ -193,14 +216,21 @@ function onConnect(peer, User ) {
     }
 
     echannel.disconnected = function(){
-        console.log("Channel Disconnected");
-        //otrchan.reset();
+        console.log("OTRTalk Channel Closed.");
+        //otrchan.reset();  ??
         echannel = undefined;
     }      
-    
-    otrchan.connect();
+
+    console.log("OTRTalk Channel Opening.. :",otrchan.connect());
 }
 
+/*
+var interval = setInterval(function(){
+    if(echannel) {
+     if(otrchan.isEncrypted() && otrchan.isAuthenticated()) otrchan.send("TEST");        
+    }
+},300);
+*/
 
 //cant catch SIGINT signals on windows!
 if(process.platform!='win32'){
@@ -212,12 +242,11 @@ stdin.on('end', shutdown );
 
 function shutdown(){
     if(this.exiting) return;
-    console.log("Shuting Down");
+    console.log("Shuting Down...");
     this.exiting = true;    
-    otrchan.close();
-    //if(echannel) echannel.close();
+    otrchan.close();    
     setTimeout(function(){        
-        channels.shutdown();
+        if(channels.shutdown) channels.shutdown();
         process.exit(0);
     },1000);
 }
