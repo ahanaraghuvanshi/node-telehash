@@ -13,7 +13,6 @@ prompt.delimiter="";
 prompt.start();
 
 var oKeysFile;    
-var oFingerprintsFile = "~/.purple/otr.fingerprints"
 var oAccountName;
 var oProtocol;
 var oList=false;
@@ -22,9 +21,9 @@ var fileExists = false;
 var user = new otr.UserState();
 var key_generation_inprogress = false;
 
-oKeysFile = options.f ? options.f : (options.file? options.file : "~/.purple/otr.private_key");
-oAccountName = options.a ? options.a : (options.accountname? options.accountname : undefined );
-oProtocol = options.p ? options.p : (options.protocol? options.protocol : undefined );
+oKeysFile = options.f ? options.f.toString() : (options.file? options.file.toString() : "~/.purple/otr.private_key");
+oAccountName = options.a ? options.a.toString() : (options.accountname? options.accountname.toString() : undefined );
+oProtocol = options.p ? options.p.toString() : (options.protocol? options.protocol.toString() : undefined );
 oList = options.l || options.list;
 oGenerate = options.g || options.generate;
 
@@ -38,12 +37,9 @@ if(path.existsSync(oKeysFile)){
     fileExists=true;
     try{
         user.readKeysSync(oKeysFile);
-    }catch(e){
-        if(oList){
-            console.log("Error Reading File:".red,oKeysFile);
-            console.log(e);
-            exit();
-        }
+    }catch(e){        
+        console.log("corrupt file:".red, oKeysFile, e);        
+        exit();
     }
 }
 
@@ -52,10 +48,17 @@ if(oList){
         console.log("File: ",oKeysFile,"doesn't exist.".red);
     }else{
         if(oAccountName && oProtocol){
-            console.log(oProtocol+":"+oAccountName,"fingerprint:",user.fingerprint(oAccountName,oProtocol));                
+            var fp = user.fingerprint(oAccountName,oProtocol);
+            if(fp){ 
+                console.log(oProtocol+":"+oAccountName,"fingerprint:",fp); 
+            }else console.log("specified account not found.");
+            
         }else{
-                    
-            console.log(user.accounts());        
+            if(user.accounts().length){
+                user.accounts().forEach(function(acc){
+                    console.log(acc.fingerprint.yellow, (acc.protocol+":"+acc.accountname).green );
+                });            
+            }else console.log("No accounts found in",oKeysFile);
         }        
     }
     exit();
