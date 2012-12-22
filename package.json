@@ -1,0 +1,21 @@
+{
+    "name":     "get-telehash",
+    "version":  "v0.0.1",
+    "main": "index.js",
+    "description": "Telehash",
+    "keywords" : ["telehash","telex","dht","p2p","udp","kademlia","json"],
+    "homepage": "https://github.com/mnaamani/node-telehash",
+    "author":{
+        "name":"Jeremie Miller",
+        "email": "jeremie@jabber.org"
+    },
+    "contributors" : ["Mokhtar Naamani <mokhtar.naamani@gmail.com>"],
+    "repository":{
+        "type":"git",
+        "url":"git@github.com:mnaamani/node-telehash.git"
+    },
+    "dependencies":
+    {
+        "async":"*"
+    }
+}

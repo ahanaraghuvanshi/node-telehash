@@ -1,4 +1,4 @@
-var telehash = require("telehash");
+var telehash = require("../indexd.js").v1.telehash;
 
 telehash.seed(function (err) {
     if (err) {

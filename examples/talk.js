@@ -1,4 +1,4 @@
-var telehash = require("telehash");
+var telehash = require("../index.js").v1.telehash;
 
 var stdin = process.openStdin();
 stdin.setEncoding("UTF-8");

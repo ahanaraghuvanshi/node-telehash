@@ -7,29 +7,22 @@
 * Based on the original code from https://github.com/quartzjer/node-telehash by Jeremie Miller.
 * Everything works but it is still alpha. (excpect some API changes as we move forward)
 
-This module provides a simple high-level API for using TeleHash.     
+## get-telehash npm module
 
-## Try it Out..! :)
+    npm install get-telehash
 
-Get the code:
-    
-    git clone git://github.com/mnaamani/node-telehash.git    
-    
-Try the chat application. Join the telehash chat lobby:
+[version 1](http://telehash.org/proto.html) of the protocol is currently implemented. [version 2](http://telehash.org/v2.html) is still emerging..
 
-    cd node-telehash/examples/
-    node chat @your_nick_name
-    
-## Quick Reference of the API
+## Version 1 High Level API overview
 
 Currently the API is simple and has the following basic functions:
 
     listen(), connect(), dial(), announce(), tap(), send()
     
 
-## listen( end_name, callback )
+## telehash.listen( end_name, callback )
 
-    var telehash = require("telehash");
+    var telehash = require("get-telehash").v1.telehash;
     telehash.seed( function(err){
         telehash.listen('echo',
             function ( request ) {
@@ -53,11 +46,11 @@ The request object will have the follwing form:
         reply:  (a method for replying to the sender of the telex, takes a message parameter)
     }
 
-See listen.js for a detailed example.
+See [listen.js](https://github.com/mnaamani/node-telehash/master/blob/examples/listen.js) for a detailed example.
 
-## connect(end_name, [discardResponse] )
+## telehash.connect(end_name, [discardResponse] )
 
-    var telehash = require("telehash");
+    var telehash = require("get-telehash").v1.telehash;
     telehash.seed( function(err){
         var connector = telehash.connect( 'echo' );      
         connector.send( 'TeleHash Rocks!', function(response){
@@ -79,7 +72,7 @@ The response object will have the following form:
         count:  (total reponses recived so far)
     }
     
-See connect.js for a detailed example.
+See [connect.js](https://github.com/mnaamani/node-telehash/blob/master/examples/connect.js) for a detailed example.
 
 ## Channels Module: built using connect() and listen() functions
 
@@ -90,7 +83,7 @@ Using the basic *connect* and *listen* functions a *channels* module is implemen
 
 Here we initialise the channels module and once we are seeded we establish a listener for 'telehash.echo.server'. 
 
-    var channels = require('channels');
+    var channels = require('get-telehash').v1.channels;
     channels.init({
        ready:function(){
           channels.listen("telehash.echo.server", onConnect );
@@ -111,7 +104,7 @@ The object peer has two methods data and send. The data() function is a callback
 
 To open a channel to a listener listening for 'telehash.echo.server' we use channels.connect():
 
-    var channels = require('channels');
+    var channels = require('get-telehash').v1.channels;
     channels.init({
        ready:function(){
            channels.connect("telehash.echo.server", onConnect );
@@ -170,7 +163,7 @@ Will send a .tap request to the switches closest to end_name for signals express
     
 Send will send a telex directly to a switch given by it's ip:port.
 
-see the wall.js example for example of dial,announce, and tap functions.
+see the [wall.js](https://github.com/mnaamani/node-telehash/blob/master/examples/wall.js) example for example of dial,announce, and tap functions.
 
 ## Notes
 
@@ -178,14 +171,9 @@ The code produces alot of debug output so I suggest you redirect the stderr to /
     ex. node chat.js 2>/dev/null
         node chat.js 2> nul         (on windows)        
 
-## TODO
-
-
 ## Refrence
     TeleHash.Org http://telehash.org/
     official TeleHash github repo https://github.com/quartzjer/TeleHash
     Locker Project https://github.com/LockerProject/Locker
     NATs http://en.wikipedia.org/wiki/Network_address_translation
     Kademlia http://en.wikipedia.org/wiki/Kademlia
-
-
