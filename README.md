@@ -103,7 +103,7 @@ To send a response:
 
     request.reply( message );
 
-See [listen.js](https://github.com/mnaamani/node-telehash/master/blob/examples/listen.js) for a detailed example.
+See [listen.js](https://github.com/mnaamani/node-telehash/blob/master/examples/listen.js) for a detailed example.
 
 
 ### telehash.connect(end_name, [discard_response] )
