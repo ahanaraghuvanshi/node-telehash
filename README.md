@@ -1,179 +1,143 @@
-# Overview - TeleHash
+## TeleHash
 
-'TeleHash is a new wire protocol for exchanging JSON in a real-time and fully decentralized manner, enabling applications to connect directly and participate as servers on the edge of the network. It is designed to efficiently route and distribute small bits of data in order for applications to discover each other directly or in relation to events around piece of shared content. The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is radically decentralized with no servers or points of central control.' Findout more @ http://telehash.org/about.html
+TeleHash is a new wire protocol for exchanging JSON in a **real-time** and fully decentralized manner, enabling applications to connect directly and **participate as servers** on the edge of the network.
+It is designed to **efficiently route and distribute** small bits of data in order for applications to **discover each other** directly or in relation to events around piece of shared content.
+The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is **radically decentralized** with **no servers or points of central control.**
+[more] (http://telehash.org/about.html)
 
-# Telehash Node.js module
+This work is forked from [Jeremie Miller's repo] (https://github.com/quartzjer/node-telehash)
 
-* Based on the original code from https://github.com/quartzjer/node-telehash by Jeremie Miller.
-* Everything works but it is still alpha. (excpect some API changes as we move forward)
-
-## get-telehash npm module
+## 'get-telehash' nodejs module
 
     npm install get-telehash
 
-[version 1](http://telehash.org/proto.html) of the protocol is currently implemented. [version 2](http://telehash.org/v2.html) is still emerging..
+Only [version 1](http://telehash.org/proto.html) of the protocol is currently implemented.
+[version 2](http://telehash.org/v2.html) is still emerging..
 
-## Version 1 High Level API overview
-
-Currently the API is simple and has the following basic functions:
-
-    listen(), connect(), dial(), announce(), tap(), send()
-    
-
-## telehash.listen( end_name, callback )
+## Getting started
+Selecting the **version** of the protocol:
 
     var telehash = require("get-telehash").v1.telehash;
-    telehash.seed( function(err){
-        telehash.listen('echo',
-            function ( request ) {
-                console.log(request.message);
-            }
-        );
+
+First optional step is to **initialise** the telehash module:
+
+    telehash.init({
+        mode: 2,    //1 = Announcer,  2 = Listener,  3 = Fully Functional
+        seeds: ['208.68.164.253:42424', '208.68.163.247:42424'],
+        udplib: 'enet' //enet or node
     });
 
+If you skip this step, the module will automatically initialise itself with the default settings shown above.
 
-This will seed you into the DHT and actively wait for any connect requests sent to the provided id 'echo'. A request object 'request' is returned upon receiving a request which contains a 'message' (string or JSON object), a reply can be sent with:
+Next you have to **seed** into the DHT:
 
-    request.reply( {...} );//the reply can be a string or JSON object.
+    telehash.seed( function(err){        
+        if(err){ 
+            //if err == 'timeout' - seeding timed out
+        }else{
+            //connected we can now send and receive telexes.
+        }
+    });
 
-The request object will have the follwing form:
+telehash will continue to try to seed until it suceeds. (even after the 10 second timeout occurs)
 
-    {
-        guid:   (the +connect signal from underlying telex),
-        message:(the +message signal from underlying telex),
-        from:   (the +from signal from underlying telex),
-        source: (the ip:port of the relaying switch), 
-        reply:  (a method for replying to the sender of the telex, takes a message parameter)
+## Low-Level Switch functions
+
+dial(), announce(), tap() and send() are the building blocks to using the telehash protocol.
+
+### telehash.dial( end_name )
+Dial once to find the closest switches to that end_name.
+
+    telehash.dial( '@telehash' );
+
+### telehash.announce(end_name, signals )
+Send signals into the network aimed at the end_name.
+
+    telehash.announce( '@telehash', {'+foo':'abcd'} );    
+
+
+### telehsh.tap(end_name, rule, callback )
+Send a .tap request to the switches closest to end_name for signals expressed in a single rule object.
+When switches forward telexes to our switch matching the tap rule the callback function is fired passing a copy of 
+the telex and the switch (sw) which forwarded the telex.
+
+    telehash.tap( '@telehash', {
+        "is":{
+            "+end":"18a8912b4cf128..."
+        },
+        "has":["+wall"]
+    }, function(sw,telex){} )
+
+
+### telehash.send(to, telex)
+To send a telex directly to a switch given by it's ip and port.
+
+    telehash.send('208.68.164.253:42424', {'+end':'1a2b3c...'} );
+
+
+[wall.js](https://github.com/mnaamani/node-telehash/blob/master/examples/wall.js) has a detailed example of using all the functions.
+
+## Simple Request/Response API
+listen() and connect() can be used to for simple request/response message exchange. 
+Exchanged messages (string or JSON) must be small enough to fit in a single telex, and there is no guarantee of delivery.
+
+### telehash.listen( end_name, callback )
+
+    telehash.listen('echo', function (request) {
+        console.log(request.message);
+    });    
+
+
+This will actively wait for any connect requests sent to the provided id 'echo'. 
+For each incoming request the callback is called with a **request** object:
+
+    {        
+      guid:    "9S13NyQoGt1",    // the +connect signal from underlying telex
+      message: "TeleHash Rocks!" // the +message signal 
+      from:    "cbfd90dd186722e1aa9a73d7a20f5af5562d5f80" //the +from signal
+      source:  "208.68.163.247:42424" //the ip:port of the relaying switch
+      reply:   function(message){..} // for replying to the sender of the telex
     }
+
+To send a response:
+
+    request.reply( message );
 
 See [listen.js](https://github.com/mnaamani/node-telehash/master/blob/examples/listen.js) for a detailed example.
 
-## telehash.connect(end_name, [discardResponse] )
 
-    var telehash = require("get-telehash").v1.telehash;
-    telehash.seed( function(err){
-        var connector = telehash.connect( 'echo' );      
-        connector.send( 'TeleHash Rocks!', function(response){
-            console.log( response.message );
-        });      
+### telehash.connect(end_name, [discard_response] )
+connect() will return a connector object. In the background the connector will use the DHT to
+find anyone listening for the end_name.
+
+    var connector = telehash.connect( 'echo', false );
+
+### connector.send( message, [callback, timeout_s] )
+
+Using the connector's send function we can then send actual messages to those listeners. 
+Replies will fire the callback function, with a response object.      
+    
+    connector.send( 'TeleHash Rocks!', function(response){
+        console.log( response.message );
     });
 
-The connect() function will return a connector object. In the background the connector will use the DHT to find anyone listening for the end_name 'echo'. Using the connector's send function we can then send actual messages (as a sting or JSON object) to the listeners. Replies will fire the callback function, with a response object. (discardResponse is optional parameter to indicate if we want to discard all responses. defaults to false)
+The send function takes optional callback function and timeout parameters. 
+Responses must arrive within the specified timeout_s (seconds) (or default 10 seconds) period or they will get discarded. 
+The callback will always be fired after timeout period expires with an empty (undefined) reponse object.
 
-## connector.send( {...}, [callback, timeout_s] )
-
-The send function takes optional callback function and timeout parameters. Responses must arrive within the specified timeout_s (seconds) (or default 10 seconds) period or they will get discarded. The callback will always be fired after timeout period expires with an empty (undefined) reponse object.
-
-The response object will have the following form:
+The response object will look like:
 
     {
-        from:   (ip:port of the relaying switch),
-        message:(the +message signal in the underlying telex),
-        count:  (total reponses recived so far)
+        from:     '212.13.155.60:5432',   // ip:port of the relaying switch
+        message:  'It sure does!',   // the +message signal in the underlying telex
+        count:    3  // total reponses recived so far
     }
     
 See [connect.js](https://github.com/mnaamani/node-telehash/blob/master/examples/connect.js) for a detailed example.
 
-## Channels Module: built using connect() and listen() functions
+### Links
+[TeleHash.org] (http://telehash.org)
 
-Using the basic *connect* and *listen* functions a *channels* module is implemented to establish a peer-to-peer UDP *session/channel* between two switches.
-(Current implementation uses Out-of-Band channel over the underlying switch UDP socket)
+[Kademlia DHT] (http://en.wikipedia.org/wiki/Kademlia)
 
-## channels.listen()
-
-Here we initialise the channels module and once we are seeded we establish a listener for 'telehash.echo.server'. 
-
-    var channels = require('get-telehash').v1.channels;
-    channels.init({
-       ready:function(){
-          channels.listen("telehash.echo.server", onConnect );
-       }		
-    });
-
-onConnect(peer) will be called when a channel is sucessfully opened with a new 'peer'.
-
-    function onConnect( peer ){
-       peer.data = function(msg){
-          peer.send(msg);//echo message back
-       }
-    }
-
-The object peer has two methods data and send. The data() function is a callback fired when a packet arrives on the channel, and send() is used to send data on the channel to the peer. (The data exchanged is a Buffer() object)
-
-## channels.connect()
-
-To open a channel to a listener listening for 'telehash.echo.server' we use channels.connect():
-
-    var channels = require('get-telehash').v1.channels;
-    channels.init({
-       ready:function(){
-           channels.connect("telehash.echo.server", onConnect );
-       }		
-    });
-    
-    function onConnect( peer ){
-       peer.data = function(msg){
-          console.log( msg.toString() );
-       }
-       setInterval( function(){				
-          peer.send( new Buffer("Hello!") ); //send a message continuously 
-       },5000);
-    }
-
-Once the channel is open you could build anything ontop of it: establishing voice/video streams, exchanging files, sending emails.. anything really.
-It is upto you however to implement peer trust/authentication and a realiable UDP transport mechanism (if required).
-
-see the channel-listen.js and channel-connect.js for simple examples.
-see alice.js and bob.js for more advanced example which illustrates the behaviour of channels better.
-
-Channels can only be established under certain conditions related to the type of NAT a peer/switch is operating behind of:
-
-    Switch A        Switch B        Channel can be established?
-    NAT             NAT             YES //but must not be behind the same NAT
-    NAT             no NAT          YES
-    no NAT          no NAT          YES
-    SNAT            no NAT          YES
-    SNAT            NAT/SNAT        NO  //almost impossible
-
-    *NAT*   non Symmetric NAT
-    *SNAT*  Symmetric NAT
-    ref: http://en.wikipedia.org/wiki/Network_address_translation
-    
-## dial( end_name )
-
-    telehash.dial( '@telehash' );
-    
-Will dial once to find the closest switches to that end_name. (end_name is the plain text, not its hash)
-
-## announce(end_name, signals )
-
-    telehash.announce( '@telehash', {'+foo':'abcd...'} );
-    
-Will send signals into the network aimed at the end_name. (end_name is the plain text name of the end, not its hash)
-
-## tap(end_name, rule, callback )
-
-    telehash.tap( '@telehash', {...}, function(sw,telex){} )
-    
-Will send a .tap request to the switches closest to end_name for signals expressed in a single rule object. When switches forward telexes to us matching the tap rule the callback function is fired passing a copy of the telex and the switch (sw) which forwarded the telex.
-
-## send(to, telex)
-
-    telehash.send('1.2.3.4:56789', {'+end':'1a2b3c...'} );
-    
-Send will send a telex directly to a switch given by it's ip:port.
-
-see the [wall.js](https://github.com/mnaamani/node-telehash/blob/master/examples/wall.js) example for example of dial,announce, and tap functions.
-
-## Notes
-
-The code produces alot of debug output so I suggest you redirect the stderr to /dev/null while running.
-    ex. node chat.js 2>/dev/null
-        node chat.js 2> nul         (on windows)        
-
-## Refrence
-    TeleHash.Org http://telehash.org/
-    official TeleHash github repo https://github.com/quartzjer/TeleHash
-    Locker Project https://github.com/LockerProject/Locker
-    NATs http://en.wikipedia.org/wiki/Network_address_translation
-    Kademlia http://en.wikipedia.org/wiki/Kademlia
+[NAT] (http://en.wikipedia.org/wiki/Network_address_translation)
