@@ -1,6 +1,6 @@
 {
     "name":     "get-telehash",
-    "version":  "v0.0.4",
+    "version":  "v0.0.5",
     "main": "index.js",
     "description": "Telehash",
     "keywords" : ["telehash","telex","dht","p2p","udp","kademlia","json"],
