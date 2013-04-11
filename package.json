@@ -1,6 +1,6 @@
 {
     "name":     "get-telehash",
-    "version":  "v0.0.5",
+    "version":  "v0.0.6",
     "main": "index.js",
     "description": "Telehash",
     "keywords" : ["telehash","telex","dht","p2p","udp","kademlia","json"],
@@ -17,6 +17,6 @@
     "dependencies":
     {
         "async":"*",
-        "enet":">=0.0.2"
+        "enet":">=0.0.3"
     }
 }
