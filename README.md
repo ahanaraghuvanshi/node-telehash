@@ -23,7 +23,7 @@ First optional step is to **initialise** the telehash module:
 
     telehash.init({
         mode: 2,    //1 = Announcer,  2 = Listener,  3 = Fully Functional
-        seeds: ['208.68.164.253:42424', '208.68.163.247:42424'],
+        seeds: ['178.79.135.146:42424', '178.79.135.146:42425'],
         udplib: 'enet' //enet or node
     });
 
