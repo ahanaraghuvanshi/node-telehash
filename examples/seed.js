@@ -13,6 +13,7 @@ if (localip.length > 0) {
     telehash.init({
         mode:3,         // full operating mode
         port: '42424',
+        respondToBroadcasts:true,
         seeds: list     // self seed
     });
     
