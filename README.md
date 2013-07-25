@@ -22,9 +22,11 @@ Selecting the **version** of the protocol:
 First optional step is to **initialise** the telehash module:
 
     telehash.init({
-        mode: 2,    //1 = Announcer,  2 = Listener,  3 = Fully Functional
-        seeds: ['178.79.135.146:42424', '178.79.135.146:42425'],
-        udplib: 'enet' //enet or node
+        mode: 2,    /* 1 = Announcer,  2 = Listener,  3 = Fully Functional */
+        seeds: ["178.79.135.146:42424", "178.79.135.146:42425"],
+        udplib: "enet", /* enet or node */
+        broadcastMode: false,
+        respondToBroadcasts: false
     });
 
 If you skip this step, the module will automatically initialise itself with the default settings shown above.
