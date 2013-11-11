@@ -1,18 +1,15 @@
-## TeleHash
+## TeleHash v1
 
 TeleHash is a new wire protocol for exchanging JSON in a **real-time** and fully decentralized manner, enabling applications to connect directly and **participate as servers** on the edge of the network.
 It is designed to **efficiently route and distribute** small bits of data in order for applications to **discover each other** directly or in relation to events around piece of shared content.
 The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is **radically decentralized** with **no servers or points of central control.**
-[more] (http://telehash.org/about.html)
 
-This work is forked from [Jeremie Miller's repo] (https://github.com/quartzjer/node-telehash)
+This work is a continuation of [Jeremie Miller's] (https://github.com/quartzjer/node-telehash) early implementation of the telehash protocol v1 spec.
+v1 is incompatible with the latest version of the spec at [telehash.org](http://telehash.org)
 
-## 'get-telehash' nodejs module
+## nodejs module
 
     npm install get-telehash
-
-Only [version 1](http://telehash.org/proto.html) of the protocol is currently implemented.
-[version 2](http://telehash.org/v2.html) is still emerging..
 
 ## Getting started
 Selecting the **version** of the protocol:
@@ -33,7 +30,7 @@ If you skip this step, the module will automatically initialise itself with the 
 
 Next you have to **seed** into the DHT:
 
-    telehash.seed( function(err){        
+    telehash.seed( function(err){
         if(err){ 
             //if err == 'timeout' - seeding timed out
         }else{
@@ -41,11 +38,11 @@ Next you have to **seed** into the DHT:
         }
     });
 
-telehash will continue to try to seed until it suceeds. (even after the 10 second timeout occurs)
+telehash will continue to try to seed until it succeeds. (even after the 10 second timeout occurs)
 
 ## Low-Level Switch functions
 
-dial(), announce(), tap() and send() are the building blocks to using the telehash protocol.
+`dial()`, `announce()`, `tap()` and `send()` are the building blocks to using the telehash protocol.
 
 ### telehash.dial( end_name )
 Dial once to find the closest switches to that end_name.
@@ -55,7 +52,7 @@ Dial once to find the closest switches to that end_name.
 ### telehash.announce(end_name, signals )
 Send signals into the network aimed at the end_name.
 
-    telehash.announce( '@telehash', {'+foo':'abcd'} );    
+    telehash.announce( '@telehash', {'+foo':'abcd'} );
 
 
 ### telehsh.tap(end_name, rule, callback )
@@ -80,20 +77,20 @@ To send a telex directly to a switch given by it's ip and port.
 [wall.js](https://github.com/mnaamani/node-telehash/blob/master/examples/wall.js) has a detailed example of using all the functions.
 
 ## Simple Request/Response API
-listen() and connect() can be used to for simple request/response message exchange. 
+`listen()` and `connect()` can be used to for simple request/response message exchange. 
 Exchanged messages (string or JSON) must be small enough to fit in a single telex, and there is no guarantee of delivery.
 
 ### telehash.listen( end_name, callback )
 
     telehash.listen('echo', function (request) {
         console.log(request.message);
-    });    
+    });
 
 
 This will actively wait for any connect requests sent to the provided id 'echo'. 
 For each incoming request the callback is called with a **request** object:
 
-    {        
+    {
       guid:    "9S13NyQoGt1",    // the +connect signal from underlying telex
       message: "TeleHash Rocks!" // the +message signal 
       from:    "cbfd90dd186722e1aa9a73d7a20f5af5562d5f80" //the +from signal
@@ -103,13 +100,13 @@ For each incoming request the callback is called with a **request** object:
 
 To send a response:
 
-    request.reply( message );
+    request.reply('It sure does!');
 
 See [listen.js](https://github.com/mnaamani/node-telehash/blob/master/examples/listen.js) for a detailed example.
 
 
 ### telehash.connect(end_name, [discard_response] )
-connect() will return a connector object. In the background the connector will use the DHT to
+`connect()` will return a connector object. In the background the connector will use the DHT to
 find anyone listening for the end_name.
 
     var connector = telehash.connect( 'echo', false );
@@ -117,7 +114,7 @@ find anyone listening for the end_name.
 ### connector.send( message, [callback, timeout_s] )
 
 Using the connector's send function we can then send actual messages to those listeners. 
-Replies will fire the callback function, with a response object.      
+Replies will fire the callback function, with a response object. 
     
     connector.send( 'TeleHash Rocks!', function(response){
         console.log( response.message );
@@ -138,8 +135,7 @@ The response object will look like:
 See [connect.js](https://github.com/mnaamani/node-telehash/blob/master/examples/connect.js) for a detailed example.
 
 ### Links
-[TeleHash.org] (http://telehash.org)
-
 [Kademlia DHT] (http://en.wikipedia.org/wiki/Kademlia)
 
 [NAT] (http://en.wikipedia.org/wiki/Network_address_translation)
+
