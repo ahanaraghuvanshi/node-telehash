@@ -17,6 +17,6 @@
     "dependencies":
     {
         "async":"*",
-        "enet":"=0.1.8"
+        "enet":"=0.1.9"
     }
 }
