@@ -13,8 +13,8 @@ if (localip.length) {
 	}, function (err, info) {
 		if (!err) {
 			console.log(info.socket.address());
-			telehash.seed(function (err) {
-				if (err) console.log(err);
+			telehash.seed(function (status) {
+				console.log(status);
 			});
 		}
 	});

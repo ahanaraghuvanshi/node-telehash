@@ -25,9 +25,9 @@ if (!me && !friend) {
 }
 telehash.init(function (err, info) {
 	if (err) return;
-	telehash.seed(function (err) {
-		if (err) {
-			console.log(err);
+	telehash.seed(function (status) {
+		if (status !== "online") {
+			console.log(status);
 			return;
 		}
 		stdin.on('data', function (chunk) {

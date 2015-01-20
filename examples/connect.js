@@ -6,9 +6,9 @@ telehash.init(function initialised(err, info) {
 		return;
 	}
 	console.log("initialised");
-	telehash.seed(function (err) {
-		if (err) {
-			console.log(err);
+	telehash.seed(function (status) {
+		if (status !== "online") {
+			console.log(status);
 			return;
 		}
 		console.log("seeded");

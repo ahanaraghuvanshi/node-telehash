@@ -27,9 +27,9 @@ if (process.argv[3]) chatRoom = process.argv[3];
 telehash.init(function (err, info) {
 	if (err) return;
 
-	telehash.seed(function (err) {
-		if (err) {
-			console.log(err);
+	telehash.seed(function (status) {
+		if (status !== "online") {
+			console.log(status);
 			return;
 		}
 		stdin.on('data', function (chunk) {

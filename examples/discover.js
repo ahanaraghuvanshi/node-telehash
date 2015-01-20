@@ -32,9 +32,9 @@ function init(callback) {
 }
 
 function seeding(err) {
-	if (err) {
-		console.log(err);
-	} else {
-		console.log("== ONLINE ==");
+	if (status !== "online") {
+		console.log(status);
+		return;
 	}
+	console.log("== ONLINE ==");
 }
