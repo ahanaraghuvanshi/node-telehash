@@ -31,7 +31,7 @@ function init(callback) {
 	});
 }
 
-function seeding(err) {
+function seeding(status) {
 	if (status !== "online") {
 		console.log(status);
 		return;
