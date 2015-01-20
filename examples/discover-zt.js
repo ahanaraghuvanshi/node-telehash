@@ -25,7 +25,7 @@ function init(callback) {
 			console.error(err);
 			setTimeout(function () {
 				init(callback);
-			}, 0);
+			}, 5000);
 			return;
 		}
 		callback(info);
