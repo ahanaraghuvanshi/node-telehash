@@ -3,19 +3,19 @@ var util = require('../lib/v1/iputil');
 
 var localip = util.getLocalIP();
 
-if (localip.length > 0) {
-
-    var list = [];
-    for(var i = 0; i < localip.length; i++){
-        if( localip[i] != "127.0.0.1") { list[0] = localip[i]+":42424"; break;}//get first local ip use as our identity
-    }
-
-    telehash.init({
-        mode:3,         // full operating mode
-        port: '42424',
-        respondToBroadcasts:true,
-        seeds: list     // self seed
-    });
-    
-    telehash.seed();
+if (localip.length) {
+	telehash.init({
+		log: console.log,
+		mode: 3, // full operating mode
+		port: '42424',
+		respondToBroadcasts: false, //self seeding hosts should dlisten on a single ip (not 0.0.0.0)
+		seeds: [localip[0] + ":42424"], // self seed
+	}, function (err, info) {
+		if (!err) {
+			console.log(info.socket.address());
+			telehash.seed(function (err) {
+				if (err) console.log(err);
+			});
+		}
+	});
 }

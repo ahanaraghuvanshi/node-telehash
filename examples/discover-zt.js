@@ -3,17 +3,39 @@ var telehash = require("../index.js").v1.telehash;
 var NETWORK_INTERFACE = "zt0"; //tun interface created by zerotier
 var bcast = process.argv[2] == 'broadcast';
 
-telehash.init({
-	log: console.error,
-	mode: 3, // full operating mode
-	interface: NETWORK_INTERFACE,
-	seeds: ["28.192.75.206:42424"],
-	udplib: "enet",
-	onSocketBound: function (addr) {
-		console.log("bound to address:", addr);
-		if (bcast) {
-			console.log("broadcasting...");
-			telehash.broadcast();
-		} else telehash.seed();
-	}
+init(function (info) {
+	console.log("bound to:", info.socket.address());
+	if (bcast) {
+		console.log("broadcasting...");
+		telehash.broadcast();
+	} else telehash.seed(seeding);
+
 });
+
+function init(callback) {
+	console.log("initialising");
+	telehash.init({
+		log: console.error,
+		mode: 3, // full operating mode
+		interface: NETWORK_INTERFACE,
+		seeds: ["28.192.75.206:42424"],
+		udplib: "enet",
+	}, function (err, info) {
+		if (err) {
+			console.error(err);
+			setTimeout(function () {
+				init(callback);
+			}, 0);
+			return;
+		}
+		callback(info);
+	});
+}
+
+function seeding(err) {
+	if (err) {
+		console.log(err);
+	} else {
+		console.log("== ONLINE ==");
+	}
+}
