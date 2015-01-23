@@ -18,7 +18,7 @@ function init(callback) {
 		log: console.error,
 		mode: 3, // full operating mode
 		interface: NETWORK_INTERFACE,
-		udplib: "enet",
+		udplib: "enet"
 	}, function (err, info) {
 		if (err) {
 			console.error(err);
@@ -32,6 +32,10 @@ function init(callback) {
 }
 
 function seeding(status) {
+	if (status === 'snat-detected') {
+		console.log("Your firewall/NAT is restricted. Exiting..");
+		process.exit();
+	}
 	if (status !== "online") {
 		console.log(status);
 		return;
