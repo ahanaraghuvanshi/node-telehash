@@ -1,10 +1,6 @@
-module.exports.iputil = require('./lib/v1/iputil.js');
-module.exports.udplib = require('./lib/v1/udplib.js');
-
-module.exports.v1 = {
-    "telehash":require('./lib/v1/telehash.js'),
-    "switch": require('./lib/v1/switch.js'),
-    "hash":require('./lib/v1/hash.js')
+module.exports = {
+	"telehash": require('./lib/telehash.js'),
+	"switch": require('./lib/switch.js'),
+	"hash": require('./lib/hash.js'),
+	"iputil": require('./lib/iputil.js')
 };
-
-//module.exports.v2

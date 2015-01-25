@@ -1,5 +1,5 @@
 /* Experimental telehash on ZeroTier 'earth' network */
-var telehash = require("../index.js").v1.telehash;
+var telehash = require("../index.js").telehash;
 var NETWORK_INTERFACE = "zt0"; //tun interface created by zerotier
 var bcast = process.argv[2] == 'broadcast';
 

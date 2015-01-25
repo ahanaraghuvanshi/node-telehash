@@ -16,7 +16,6 @@
     },
     "dependencies":
     {
-        "async":"*",
-        "enet":"=0.1.10"
+        "async":"*"
     }
 }

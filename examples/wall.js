@@ -1,6 +1,6 @@
 var sys = require("sys");
-var telehash = require("../index.js").v1.telehash;
-var hlib = require("../index.js").v1.hash;
+var telehash = require("../index.js").telehash;
+var hlib = require("../index.js").hash;
 
 
 var stdin = process.openStdin();
