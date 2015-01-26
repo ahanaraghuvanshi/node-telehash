@@ -6,12 +6,10 @@ telehash.init({
 	log: console.error,
 	mode: 3, // full operating mode
 	interface: NETWORK_INTERFACE,
-	udplib: "node",
 	respondToBroadcasts: true,
 	port: 42424
-}, function (err, info) {
+}, function (err) {
 
-	console.log("bound to address:", info.socket.address());
 	console.log("listening for broadcasts");
 	telehash.broadcast();
 

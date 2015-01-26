@@ -24,7 +24,7 @@ nickName = process.argv[2];
 if (process.argv[3]) chatRoom = process.argv[3];
 
 
-telehash.init(function (err, info) {
+telehash.init(function (err) {
 	if (err) return;
 
 	telehash.seed(function (status) {

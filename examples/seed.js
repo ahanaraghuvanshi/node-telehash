@@ -10,9 +10,8 @@ if (localip.length) {
 		port: '42424',
 		respondToBroadcasts: false, //self seeding hosts should dlisten on a single ip (not 0.0.0.0)
 		seeds: [localip[0] + ":42424"], // self seed
-	}, function (err, info) {
+	}, function (err) {
 		if (!err) {
-			console.log(info.socket.address());
 			telehash.seed(function (status) {
 				console.log(status);
 			});

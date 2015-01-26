@@ -23,7 +23,7 @@ if (!me && !friend) {
 	console.log("Usage: node talk @you @friend");
 	process.exit();
 }
-telehash.init(function (err, info) {
+telehash.init(function (err) {
 	if (err) return;
 	telehash.seed(function (status) {
 		if (status !== "online") {

@@ -3,8 +3,7 @@ var telehash = require("../index.js").telehash;
 var NETWORK_INTERFACE = "zt0"; //tun interface created by zerotier
 var bcast = process.argv[2] == 'broadcast';
 
-init(function (info) {
-	console.log("bound to:", info.socket.address());
+init(function () {
 	if (bcast) {
 		console.log("broadcasting...");
 		telehash.broadcast();
@@ -18,9 +17,8 @@ function init(callback) {
 		log: console.error,
 		mode: 3, // full operating mode
 		interface: NETWORK_INTERFACE,
-		seeds: ["28.192.75.206:42424"],
-		udplib: "enet",
-	}, function (err, info) {
+		seeds: ["28.192.75.206:42424"]
+	}, function (err) {
 		if (err) {
 			console.error(err);
 			setTimeout(function () {
@@ -28,7 +26,7 @@ function init(callback) {
 			}, 5000);
 			return;
 		}
-		callback(info);
+		callback();
 	});
 }
 

@@ -8,7 +8,7 @@ stdin.setEncoding("UTF-8");
 
 telehash.init({
 	mode: 2
-}, function (err, info) {
+}, function (err) {
 	if (err) {
 		return;
 	}

@@ -1,6 +1,6 @@
 var telehash = require("../index.js").telehash;
 
-telehash.init(function initialised(err, info) {
+telehash.init(function initialised(err) {
 	if (err) {
 		console.log(err);
 		return;
