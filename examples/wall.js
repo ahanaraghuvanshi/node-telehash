@@ -54,5 +54,4 @@ process.on('SIGINT', function () {
 
 stdin.on('end', function () {
 	telehash.shutdown();
-	process.exit(0);
 });

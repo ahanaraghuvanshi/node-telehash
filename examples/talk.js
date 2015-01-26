@@ -86,8 +86,5 @@ stdin.on('end', function () {
 	if (connector) connector.send({
 		txt: '[DISCONNECTED]'
 	});
-	setTimeout(function () {
-		telehash.shutdown();
-		process.exit(0);
-	}, 500);
+	telehash.shutdown();
 });

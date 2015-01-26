@@ -83,8 +83,6 @@ stdin.on('end', function () {
 		x: 'leave',
 		nick: nickName
 	});
-	setTimeout(function () {
-		telehash.shutdown();
-		process.exit(0);
-	}, 500);
+
+	telehash.shutdown();
 });
