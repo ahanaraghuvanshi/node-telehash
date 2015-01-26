@@ -19,7 +19,8 @@ function init(callback) {
 	console.log("initialising");
 	telehash.init({
 		mode: 3, // full operating mode
-		interface: NETWORK_INTERFACE
+		interface: NETWORK_INTERFACE,
+		port: 42424
 	}, function (err) {
 		if (err) {
 			console.error(err);
@@ -32,9 +33,9 @@ function init(callback) {
 	});
 }
 
-function seeding(status) {
-	console.log("Status update:", status);
-	if (status === 'snat-detected') {
+function seeding(status, info) {
+	console.log("Status update:", status, info ? info : "");
+	if (status === 'offline' && info === 'snat-detected') {
 		console.log("Network firewall/NAT router is restricted. Exiting..");
 		process.exit();
 	}
