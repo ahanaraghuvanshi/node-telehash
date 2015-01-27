@@ -25,25 +25,33 @@ if (!me && !friend) {
 }
 telehash.init(function (err) {
 	if (err) return;
-	telehash.seed(function (status) {
+	telehash.seed(function (status, info) {
+		if (status === 'offline' && info === 'snat-detected') {
+			console.log("SNAT detected. Exiting...");
+			process.exit();
+		}
 		if (status !== "online") {
 			console.log(status);
 			return;
 		}
-		stdin.on('data', function (chunk) {
-			if (chunk.length > 1) {
-				SendTxt(chunk);
-			}
-		});
+		if (!connector) {
+			stdin.on('data', function (chunk) {
+				if (chunk.length > 1) {
+					SendTxt(chunk);
+				}
+			});
+		}
 		talk();
 	});
 });
 
 function talk() {
 	console.log("connecting to:", friend);
-	connector = telehash.connect(friend);
-	listen(me);
-	console.log("we are:", me);
+	if (!connector) {
+		connector = telehash.connect(friend);
+		listen(me);
+		console.log("we are:", me);
+	}
 	SendTxt('[CONNECTED]');
 }
 

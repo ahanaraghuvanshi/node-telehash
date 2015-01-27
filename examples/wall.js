@@ -2,6 +2,7 @@ var sys = require("sys");
 var telehash = require("../index.js").telehash;
 var hlib = require("../index.js").hash;
 
+var running = false;
 
 var stdin = process.openStdin();
 stdin.setEncoding("UTF-8");
@@ -12,17 +13,21 @@ telehash.init({
 	if (err) {
 		return;
 	}
-	telehash.seed(function (status) {
+	telehash.seed(function (status, info) {
+		if (status === 'offline' && info === 'snat-detected') {
+			console.log("SNAT detected. Exiting...");
+			process.exit();
+		}
 		if (status !== "online") {
 			console.log(status);
 			return;
 		}
-		wall("42");
+		if (!running) wall("42");
 	});
 });
 
 function wall(THEWALL) {
-
+	running = true;
 	var endHash = new hlib.Hash(THEWALL);
 	var tap = {};
 	tap.is = {};

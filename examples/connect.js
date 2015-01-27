@@ -1,4 +1,5 @@
 var telehash = require("../index.js").telehash;
+var connector;
 
 telehash.init(function initialised(err) {
 	if (err) {
@@ -6,7 +7,11 @@ telehash.init(function initialised(err) {
 		return;
 	}
 	console.log("initialised");
-	telehash.seed(function (status) {
+	telehash.seed(function (status, info) {
+		if (status === 'offline' && info === 'snat-detected') {
+			console.log("SNAT detected. Exiting...");
+			process.exit();
+		}
 		if (status !== "online") {
 			console.log(status);
 			return;
@@ -18,7 +23,7 @@ telehash.init(function initialised(err) {
 
 function connect(name) {
 
-	var connector = telehash.connect(name);
+	if (!connector) connector = telehash.connect(name);
 	var gotResponse = false;
 
 	connector.send("TeleHash Rocks!", function (obj) {

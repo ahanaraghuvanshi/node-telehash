@@ -24,10 +24,7 @@ function init(callback) {
 	}, function (err) {
 		if (err) {
 			console.error(err);
-			setTimeout(function () {
-				init(callback);
-			}, 5000);
-			return;
+			process.exit();
 		}
 		callback();
 	});
@@ -47,7 +44,7 @@ function seeding(status, info) {
 		return;
 	}
 
-	console.log("public address:", telehash.publicAddress());
+	console.log("public address:", telehash.address());
 	console.log("behind NAT?:", telehash.nat());
 	console.log("running in mode:", telehash.mode());
 }

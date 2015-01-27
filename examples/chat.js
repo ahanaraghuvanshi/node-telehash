@@ -8,13 +8,6 @@ var nickName = "@user";
 var stdin = process.openStdin();
 stdin.setEncoding("UTF-8");
 
-//throw away output to stderr - required nodejs v0.6+
-process.__defineGetter__('stderr', function () {
-	return {
-		write: function () {}
-	};
-});
-
 if (!process.argv[2]) {
 	console.log("Usage: node chat.js nickname [chatroom]\n");
 	process.exit();
@@ -25,44 +18,53 @@ if (process.argv[3]) chatRoom = process.argv[3];
 
 
 telehash.init(function (err) {
-	if (err) return;
+	if (err) {
+		console.log(err);
+		process.exit();
+		return;
+	}
 
-	telehash.seed(function (status) {
+	telehash.seed(function (status, info) {
+		if (status === 'offline' && info === 'snat-detected') {
+			console.log("SNAT detected. Exiting...");
+			process.exit();
+		}
 		if (status !== "online") {
 			console.log(status);
 			return;
 		}
-		stdin.on('data', function (chunk) {
-			if (chunk.length > 1) {
-				if (connector) connector.send({
-					txt: chunk,
-					nick: nickName
-				});
-			}
-		});
+		if (!connector) {
+			stdin.on('data', function (chunk) {
+				if (chunk.length > 1) {
+					if (connector) connector.send({
+						txt: chunk,
+						nick: nickName
+					});
+				}
+			});
+		}
 		chat(chatRoom);
 	});
 });
 
 function chat(name) {
+	if (!connector) {
+		connector = telehash.connect(name, true);
+		telehash.listen(name, function (MSG) {
+			var msg_sig = MSG.guid + MSG.message;
+			if (!chatCache[msg_sig]) {
+				if (MSG.message.x) {
+					if (MSG.message.x == 'join') console.log("[JOINED] " + MSG.message.nick);
+					if (MSG.message.x == 'leave') console.log("[LEFT THE CHAT] <" + MSG.message.nick + ">");
+				} else {
+					if (MSG.message.txt) console.log("<" + MSG.message.nick + ">: " + MSG.message.txt);
+				}
+				chatCache[msg_sig] = true;
 
-	connector = telehash.connect(name, true);
-
-	telehash.listen(name, function (MSG) {
-		var msg_sig = MSG.guid + MSG.message;
-		if (!chatCache[msg_sig]) {
-			if (MSG.message.x) {
-				if (MSG.message.x == 'join') console.log("[JOINED] " + MSG.message.nick);
-				if (MSG.message.x == 'leave') console.log("[LEFT THE CHAT] <" + MSG.message.nick + ">");
-			} else {
-				if (MSG.message.txt) console.log("<" + MSG.message.nick + ">: " + MSG.message.txt);
 			}
-			chatCache[msg_sig] = true;
-
-		}
-	});
-
-	console.log("Joining chat room: " + name + " as " + nickName);
+		});
+	}
+	console.log("Connected. Joining chat room: " + name + " as " + nickName);
 	connector.send({
 		x: 'join',
 		nick: nickName

@@ -12,7 +12,11 @@ if (localip.length) {
 		seeds: [localip[0] + ":42424"], // self seed
 	}, function (err) {
 		if (!err) {
-			telehash.seed(function (status) {
+			telehash.seed(function (status, info) {
+				if (status === 'offline' && info === 'snat-detected') {
+					console.log("SNAT detected. Exiting...");
+					process.exit();
+				}
 				console.log(status);
 			});
 		}
