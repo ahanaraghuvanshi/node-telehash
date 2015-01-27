@@ -4,7 +4,7 @@ TeleHash is a wire protocol for exchanging JSON in a **real-time** and fully de-
 It is designed to **efficiently route and distribute** small bits of data in order for applications to **discover each other** directly or in relation to events around piece of shared content.
 The core benefits of TeleHash over other similar platforms and protocols is that it is both generic (not tied to any specific application or content structures) and is **radically decentralized** with **no servers or points of central control.**
 
-This work is a continuation of [Jeremie Miller's](https://github.com/quartzjer/node-telehash) early implementation of the telehash protocol v1 spec.
+This work is a continuation of [Jeremie Miller's](https://github.com/quartzjer/TeleHash) early implementation of the telehash protocol v1 spec.
 v1 is incompatible with the latest version of the spec at [telehash.org](http://telehash.org)
 
 [Original v1 spec documentation.](https://github.com/mnaamani/node-telehash/blob/master/spec)
