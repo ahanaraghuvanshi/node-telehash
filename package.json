@@ -2,7 +2,7 @@
 	"name": "get-telehash",
 	"version": "v0.2.0",
 	"main": "index.js",
-	"description": "Telehash",
+	"description": "Telehash library for protocol version 1",
 	"keywords": ["telehash", "telex", "dht", "p2p", "udp", "kademlia", "json"],
 	"homepage": "https://github.com/mnaamani/node-telehash",
 	"author": {
