@@ -1,8 +1,7 @@
 var telehash = require("../index.js").telehash;
 var slib = require("../index.js").switch;
-var hlib = require("../index.js").hash;
-var util = require('../lib/iputil');
-var NETWORK_INTERFACE = ""; //for example eth0, zt0 - if empty first interface with non loopack address found will be used
+
+var NETWORK_INTERFACE = ""; //eth0, zt0, or ip-address
 
 var bcast = process.argv[2] == 'broadcast';
 
@@ -19,7 +18,7 @@ function oninit() {
 function init(callback) {
 	console.log("initialising");
 	telehash.init({
-		mode: 3, // full operating mode
+		mode: telehash.MODE.FULL,
 		interface: NETWORK_INTERFACE
 	}, function (err) {
 		if (err) {
@@ -58,7 +57,7 @@ setInterval(function () {
 }, 30000);
 
 setInterval(function () {
-	if (telehash.state() !== 2) return; //not online
+	if (telehash.state() !== telehash.STATE.ONLINE) return; //not online
 	telehash.ping("178.79.135.146:42425");
 	telehash.ping("178.79.135.146:42424");
 }, 20000);

@@ -4,7 +4,7 @@ var NETWORK_INTERFACE = ""; //for example eth0, zt0, or ip-address
 
 telehash.init({
 	log: console.error,
-	mode: 3, // full operating mode
+	mode: telehash.MODE.FULL,
 	interface: NETWORK_INTERFACE,
 	respondToBroadcasts: true,
 	port: 42424

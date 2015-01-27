@@ -6,7 +6,7 @@ var localip = util.getLocalIP();
 if (localip.length) {
 	telehash.init({
 		log: console.log,
-		mode: 3, // full operating mode
+		mode: telehash.MODE.FULL,
 		port: '42424',
 		respondToBroadcasts: false, //self seeding hosts should dlisten on a single ip (not 0.0.0.0)
 		seeds: [localip[0] + ":42424"], // self seed
