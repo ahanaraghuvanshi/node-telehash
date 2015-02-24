@@ -37,7 +37,7 @@ We can optionally initialise telehash network with options:
 		respondToBroadcasts: false,
 		interface: "eth0", /* interface name, or ip address, or "ALL"
 		port: 20000,
-		socket: require("dgram").createSocket("udp4")
+		socket: require("dgram").createSocket("udp4").bind(20000)
 		/* socket can be a normal node dgram sockket or any object
 		 that has a dgram socket API. interface and port are ignored if we pass in a socket*/
 	},function(err){
@@ -87,7 +87,7 @@ Returns the mode we are running in. There are three modes:
 	telehash.MODE.FULL
 
 The default mode if not set during initialising is LISTENER
-See [mode.js](https://github.com/mnaamani/node-telehash/blob/master/lib/mode.js) for explanation of each mode.
+See [mode.js](https://github.com/mnaamani/node-telehash/blob/master/lib/modes.js) for explanation of each mode.
 
 ### telehash.address()
 Returns our address used in the DHT.
@@ -198,11 +198,11 @@ To send a response:
 See [listen.js](https://github.com/mnaamani/node-telehash/blob/master/examples/listen.js) for a detailed example.
 
 
-### telehash.connect(end_name, [discard_response] )
+### telehash.connect(end_name)
 `connect()` will return a connector object. In the background the connector will use the DHT to
 find anyone listening for the end_name.
 
-	var connector = telehash.connect( 'echo', false );
+	var connector = telehash.connect("echo");
 
 ### connector.send( message, [callback, timeout_s] )
 
